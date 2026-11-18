@@ -44,9 +44,8 @@ export function AdminSidebar({ isOpen = false, onClose }: AdminSidebarProps) {
 
   return (
     <aside
-      className={`fixed top-0 bottom-0 left-0 z-40 w-64 h-screen bg-navy text-white flex flex-col border-r border-navy-light shadow-xl transition-transform duration-200 ease-in-out ${
-        isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-      }`}
+      className={`fixed top-0 bottom-0 left-0 z-40 w-64 h-screen bg-navy text-white flex flex-col border-r border-navy-light shadow-xl transition-transform duration-200 ease-in-out ${isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        }`}
     >
       {/* Brand Header */}
       <div className="h-16 px-6 flex items-center justify-between border-b border-navy-light shrink-0">
@@ -89,11 +88,10 @@ export function AdminSidebar({ isOpen = false, onClose }: AdminSidebarProps) {
               key={item.href}
               href={item.href}
               onClick={onClose}
-              className={`flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                isActive
+              className={`flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive
                   ? "bg-royal text-white shadow-sm font-semibold"
                   : "text-gray-300 hover:text-white hover:bg-navy-light"
-              }`}
+                }`}
             >
               <Icon className="w-4 h-4 shrink-0" />
               <span>{item.label}</span>
@@ -116,13 +114,13 @@ export function AdminSidebar({ isOpen = false, onClose }: AdminSidebarProps) {
           <ExternalLink className="w-3 h-3 text-gray-400" />
         </Link>
 
-        <button
-          onClick={() => signOut({ callbackUrl: "/admin/login" })}
+        <Link
+          href="/admin/login"
           className="w-full flex items-center space-x-2 px-3 py-2 text-xs font-medium text-rose-300 rounded hover:bg-rose-950/40 hover:text-rose-200 transition-colors cursor-pointer"
         >
           <LogOut className="w-3.5 h-3.5" />
           <span>Sign Out</span>
-        </button>
+        </Link>
       </div>
     </aside>
   );
