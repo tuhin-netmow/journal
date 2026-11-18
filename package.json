@@ -1,0 +1,43 @@
+{
+  "name": "academic-journal",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "seed": "tsx src/scripts/seed.ts",
+    "create-admin": "tsx src/scripts/create-admin.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.750.0",
+    "@hookform/resolvers": "^3.10.0",
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/qrcode": "^1.5.6",
+    "bcryptjs": "^2.4.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.16.0",
+    "mongoose": "^8.12.0",
+    "next": "16.4.6",
+    "next-auth": "^4.24.11",
+    "qrcode": "^1.5.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-hook-form": "^7.54.2",
+    "tailwind-merge": "^3.0.0",
+    "tailwindcss": "^4.0.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.13.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "dotenv": "^16.4.7",
+    "postcss": "^8.5.2",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3"
+  }
+}
