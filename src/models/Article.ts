@@ -45,6 +45,10 @@ const ArticleSchema = new Schema<IArticle>(
   { timestamps: true }
 );
 
+if (process.env.NODE_ENV !== "production") {
+  delete (models as any).Article;
+}
+
 const Article: Model<IArticle> =
   models.Article || mongoose.model<IArticle>("Article", ArticleSchema);
 export default Article;

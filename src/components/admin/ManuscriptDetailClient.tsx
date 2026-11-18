@@ -22,17 +22,23 @@ import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { PaymentStatusBadge } from "@/components/admin/PaymentStatusBadge";
 import { formatDate } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface ManuscriptDetailClientProps {
   manuscript: any;
+  initialLinkedArticle?: any;
 }
 
-export function ManuscriptDetailClient({ manuscript }: ManuscriptDetailClientProps) {
+export function ManuscriptDetailClient({
+  manuscript,
+  initialLinkedArticle,
+}: ManuscriptDetailClientProps) {
   const router = useRouter();
 
   const [status, setStatus] = useState(manuscript.status);
   const [paymentStatus, setPaymentStatus] = useState(manuscript.paymentStatus);
   const [adminNotes, setAdminNotes] = useState(manuscript.adminNotes || "");
+  const [linkedArticle, setLinkedArticle] = useState<any>(initialLinkedArticle || null);
 
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -60,11 +66,22 @@ export function ManuscriptDetailClient({ manuscript }: ManuscriptDetailClientPro
         throw new Error(data.error || "Failed to update manuscript");
       }
 
-      setSuccessMessage("Manuscript review status and notes updated successfully!");
+      if (data.publishedArticle) {
+        setLinkedArticle(data.publishedArticle);
+      }
+
+      const successText = data.publishedArticle
+        ? "Manuscript published & scholarly article released to archives!"
+        : data.emailDispatched
+        ? `Manuscript status updated & notification email sent to ${data.authorEmail}!`
+        : "Manuscript review status and notes updated successfully!";
+      setSuccessMessage(successText);
+      toast.success(successText);
       router.refresh();
-      setTimeout(() => setSuccessMessage(null), 3000);
+      setTimeout(() => setSuccessMessage(null), 4000);
     } catch (err: any) {
       setErrorMessage(err.message || "Failed to save updates.");
+      toast.error(err.message || "Failed to save updates.");
     } finally {
       setSaving(false);
     }
@@ -86,10 +103,11 @@ export function ManuscriptDetailClient({ manuscript }: ManuscriptDetailClientPro
         throw new Error(data.error || "Failed to delete");
       }
 
+      toast.success(`Manuscript ${manuscript.submissionId} deleted successfully!`);
       router.push("/admin/submissions");
       router.refresh();
     } catch (err: any) {
-      alert("Error: " + err.message);
+      toast.error("Failed to delete manuscript: " + err.message);
       setDeleting(false);
     }
   };
@@ -115,8 +133,31 @@ export function ManuscriptDetailClient({ manuscript }: ManuscriptDetailClientPro
           </div>
         </div>
 
-        <div className="flex items-center space-x-2">
-          {manuscript.status === "accepted" && (
+        <div className="flex flex-wrap items-center gap-2">
+          {linkedArticle?.slug ? (
+            <>
+              <Button
+                href={`/articles/${linkedArticle.slug}`}
+                target="_blank"
+                variant="teal"
+                size="sm"
+                className="space-x-1.5 shadow-sm font-semibold"
+              >
+                <ExternalLink className="w-4 h-4" />
+                <span>View Live Article</span>
+              </Button>
+
+              <Button
+                href={`/admin/articles/${linkedArticle._id}/edit`}
+                variant="outline"
+                size="sm"
+                className="space-x-1.5 text-xs font-semibold"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>Edit Article</span>
+              </Button>
+            </>
+          ) : (
             <Button
               href={`/admin/articles/new?sourceManuscriptId=${manuscript._id}`}
               variant="teal"

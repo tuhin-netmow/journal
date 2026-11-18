@@ -5,6 +5,7 @@ import { Send, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 
 export function ContactForm() {
   const [name, setName] = useState("");
@@ -34,12 +35,15 @@ export function ContactForm() {
       }
 
       setSuccess(true);
+      toast.success("Message sent successfully! We will get back to you shortly.");
       setName("");
       setEmail("");
       setSubject("");
       setMessage("");
     } catch (err: any) {
-      setError(err.message || "An error occurred while sending your message.");
+      const errMsg = err.message || "An error occurred while sending your message.";
+      setError(errMsg);
+      toast.error(errMsg);
     } finally {
       setLoading(false);
     }

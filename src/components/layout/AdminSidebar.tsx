@@ -37,25 +37,47 @@ const navItems = [
 interface AdminSidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
+  logo?: string;
+  journalName?: string;
+  shortName?: string;
 }
 
-export function AdminSidebar({ isOpen = false, onClose }: AdminSidebarProps) {
+export function AdminSidebar({
+  isOpen = false,
+  onClose,
+  logo,
+  journalName,
+  shortName,
+}: AdminSidebarProps) {
   const pathname = usePathname();
 
   return (
     <aside
-      className={`fixed top-0 bottom-0 left-0 z-40 w-64 h-screen bg-navy text-white flex flex-col border-r border-navy-light shadow-xl transition-transform duration-200 ease-in-out ${isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        }`}
+      className={`fixed top-0 bottom-0 left-0 z-40 w-64 h-screen bg-navy text-white flex flex-col border-r border-navy-light shadow-xl transition-transform duration-200 ease-in-out ${
+        isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+      }`}
     >
       {/* Brand Header */}
-      <div className="h-16 px-6 flex items-center justify-between border-b border-navy-light shrink-0">
-        <Link href="/admin" onClick={onClose} className="flex items-center space-x-2.5">
-          <div className="w-8 h-8 rounded bg-royal flex items-center justify-center text-white font-bold">
-            <BookOpen className="w-4 h-4" />
-          </div>
-          <div className="flex flex-col">
-            <span className="font-serif font-bold text-sm tracking-wide">IJASR Admin</span>
-            <span className="text-[10px] text-gray-400">Editorial Management</span>
+      <div className="h-16 px-4 sm:px-5 flex items-center justify-between border-b border-navy-light shrink-0">
+        <Link href="/admin" onClick={onClose} className="flex items-center space-x-2.5 min-w-0">
+          {logo ? (
+            <div className="bg-white px-2 py-1 rounded-md shadow-xs flex items-center justify-center shrink-0 border border-white/20">
+              <img
+                src={logo}
+                alt={journalName || "Journal Logo"}
+                className="h-8.5 w-auto max-w-[125px] object-contain"
+              />
+            </div>
+          ) : (
+            <div className="w-8 h-8 rounded bg-royal flex items-center justify-center text-white font-bold shrink-0">
+              <BookOpen className="w-4 h-4" />
+            </div>
+          )}
+          <div className="flex flex-col truncate">
+            <span className="font-serif font-bold text-sm tracking-wide truncate">
+              {shortName ? `${shortName} Admin` : "IJASR Admin"}
+            </span>
+            <span className="text-[10px] text-gray-400">Editorial Portal</span>
           </div>
         </Link>
 

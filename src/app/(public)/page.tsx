@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { ArticleCard } from "@/components/journal/ArticleCard";
 import { formatDate } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 0; // Dynamic server rendering
 
 export default async function HomePage() {

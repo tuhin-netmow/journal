@@ -14,6 +14,7 @@ export const metadata = {
   description: "Explore the comprehensive archival collection of past volumes, issues, and peer-reviewed articles published in IJASR.",
 };
 
+export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 interface ArchivesPageProps {
@@ -37,10 +38,16 @@ export default async function ArchivesPage({ searchParams }: ArchivesPageProps) 
   // Fetch all volumes sorted descending
   const volumes = await Volume.find().sort({ volumeNumber: -1 }).lean();
 
-  // Fetch all published issues
-  const allIssues = await Issue.find({ status: "published" })
+  // Fetch all published issues or issues containing published articles
+  const publishedIssueIds = await Article.distinct("issue", { status: "published" });
+  const allIssues = await Issue.find({
+    $or: [
+      { status: "published" },
+      { _id: { $in: publishedIssueIds } }
+    ]
+  })
     .populate("volume", "volumeNumber year")
-    .sort({ publicationDate: -1 })
+    .sort({ publicationDate: -1, issueNumber: 1 })
     .lean();
 
   // Group issues by year and volume

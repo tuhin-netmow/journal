@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -14,10 +14,12 @@ import {
   Loader2,
   ArrowLeft,
   ExternalLink,
+  Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 import { slugify } from "@/lib/utils";
 
 interface ArticleFormProps {
@@ -61,6 +63,8 @@ export function ArticleForm({
 
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [sourceManuscript] = useState(initialData.sourceManuscript || "");
+  const [notifyAuthors, setNotifyAuthors] = useState(true);
+  const [sendingNotice, setSendingNotice] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -68,9 +72,11 @@ export function ArticleForm({
   const [success, setSuccess] = useState<string | null>(null);
 
   // Filter issues by currently selected volume
-  const availableIssues = issues.filter(
-    (iss) => (iss.volume?._id?.toString() || iss.volume?.toString()) === volumeId
-  );
+  const availableIssues = useMemo(() => {
+    return issues.filter(
+      (iss) => (iss.volume?._id?.toString() || iss.volume?.toString()) === volumeId
+    );
+  }, [issues, volumeId]);
 
   // Auto-select issue when volume changes if current issue is not in volume
   useEffect(() => {
@@ -142,6 +148,7 @@ export function ArticleForm({
       formData.append("doi", doi);
       formData.append("status", status);
       formData.append("publicationDate", publicationDate);
+      formData.append("notifyAuthors", String(notifyAuthors));
       if (sourceManuscript) {
         formData.append("sourceManuscript", sourceManuscript);
       }
@@ -159,13 +166,50 @@ export function ArticleForm({
         throw new Error(data.error || "Failed to save article");
       }
 
-      setSuccess(`Article ${isEdit ? "updated" : "created"} successfully!`);
+      const successMsg = `Article ${isEdit ? "updated" : "created"} successfully!`;
+      setSuccess(successMsg);
+
+      if (data.emailDispatched) {
+        toast.success(`Article saved & publication notice emailed to: ${data.emailRecipients?.join(", ") || "authors"}!`);
+      } else if (status === "published" && (!data.emailRecipients || data.emailRecipients.length === 0)) {
+        toast.success(successMsg);
+        toast.info("Notice: No author email on file. Add author email to send automated publication letters.", {
+          duration: 5000,
+        });
+      } else {
+        toast.success(successMsg);
+      }
+
       router.push("/admin/articles");
       router.refresh();
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred.");
+      toast.error(err.message || "An unexpected error occurred.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSendPublicationNotice = async () => {
+    if (!initialData._id) return;
+    setSendingNotice(true);
+    try {
+      const res = await fetch(`/api/articles/${initialData._id}/notify`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to send publication email");
+      }
+      if (data.recipients && data.recipients.length > 0) {
+        toast.success(`Publication email dispatched to: ${data.recipients.join(", ")}`);
+      } else {
+        toast.info(data.message || "Publication notice sent to editorial office (no author email on file)");
+      }
+    } catch (err: any) {
+      toast.error("Email dispatch failed: " + err.message);
+    } finally {
+      setSendingNotice(false);
     }
   };
 
@@ -185,10 +229,11 @@ export function ArticleForm({
         throw new Error(data.error || "Failed to delete article");
       }
 
+      toast.success("Article deleted successfully!");
       router.push("/admin/articles");
       router.refresh();
     } catch (err: any) {
-      alert("Error: " + err.message);
+      toast.error("Error: " + err.message);
       setDeleting(false);
     }
   };
@@ -212,14 +257,33 @@ export function ArticleForm({
 
         <div className="flex items-center space-x-3">
           {isEdit && initialData.status === "published" && (
-            <Link
-              href={`/articles/${initialData.slug}`}
-              target="_blank"
-              className="text-xs text-royal hover:underline flex items-center space-x-1"
-            >
-              <span>View Live</span>
-              <ExternalLink className="w-3 h-3" />
-            </Link>
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleSendPublicationNotice}
+                disabled={sendingNotice}
+                className="space-x-1.5 font-semibold text-teal border-teal/40 hover:bg-teal/10"
+                title="Send or resend official publication announcement email to authors"
+              >
+                {sendingNotice ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Mail className="w-4 h-4" />
+                )}
+                <span>Send Publication Email</span>
+              </Button>
+
+              <Link
+                href={`/articles/${initialData.slug}`}
+                target="_blank"
+                className="text-xs text-royal hover:underline flex items-center space-x-1"
+              >
+                <span>View Live</span>
+                <ExternalLink className="w-3 h-3" />
+              </Link>
+            </>
           )}
 
           {isEdit && (
@@ -369,9 +433,14 @@ export function ArticleForm({
       {/* Authors Card */}
       <div className="bg-white rounded-xl border border-academic-border p-6 shadow-sm space-y-4">
         <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-          <h3 className="font-serif font-bold text-lg text-navy">
-            Authors & Affiliations *
-          </h3>
+          <div>
+            <h3 className="font-serif font-bold text-lg text-navy">
+              Authors & Affiliations *
+            </h3>
+            <p className="text-xs text-academic-muted">
+              Add all contributing authors. Provide email addresses so authors receive automated publication announcements.
+            </p>
+          </div>
           <Button
             type="button"
             variant="outline"
@@ -384,6 +453,13 @@ export function ArticleForm({
           </Button>
         </div>
 
+        <div className="bg-blue-50/70 border border-blue-200/60 rounded-lg p-3 text-xs text-navy flex items-start space-x-2">
+          <Mail className="w-4 h-4 text-royal shrink-0 mt-0.5" />
+          <span>
+            <strong>Publication Email Notice:</strong> When an article is published, congratulations letters containing citation metadata and open access PDF download links are automatically dispatched to all authors with valid emails entered below.
+          </span>
+        </div>
+
         <div className="space-y-3">
           {authors.map((auth, index) => (
             <div
@@ -392,7 +468,7 @@ export function ArticleForm({
             >
               <Input
                 required
-                placeholder="Author Name *"
+                placeholder={index === 0 ? "Primary Author Name *" : `Co-Author ${index + 1} Name *`}
                 value={auth.name}
                 onChange={(e) => updateAuthor(index, "name", e.target.value)}
                 className="sm:w-1/3"
@@ -405,7 +481,7 @@ export function ArticleForm({
               />
               <Input
                 type="email"
-                placeholder="Author Email (for notice)"
+                placeholder={index === 0 ? "Primary Author Email (receives publication email) *" : "Author Email (receives notice)"}
                 value={auth.email || ""}
                 onChange={(e) => updateAuthor(index, "email", e.target.value)}
                 className="sm:w-1/3"
@@ -497,6 +573,25 @@ export function ArticleForm({
             />
           </div>
         </div>
+
+        {status === "published" && (
+          <div className="bg-academic-bg p-3.5 rounded-lg border border-academic-border/70">
+            <label className="flex items-center space-x-2 text-xs font-semibold text-academic-text cursor-pointer">
+              <input
+                type="checkbox"
+                checked={notifyAuthors}
+                onChange={(e) => setNotifyAuthors(e.target.checked)}
+                className="rounded border-academic-border text-teal focus:ring-teal w-4 h-4"
+              />
+              <span>
+                Dispatch celebratory publication announcement email to author(s) upon saving
+              </span>
+            </label>
+            <p className="text-[11px] text-academic-muted ml-6 mt-0.5">
+              Sends an official Open Access publication letter and download links to all authors with email addresses provided above.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* PDF Upload Card */}

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { PaymentStatusBadge } from "@/components/admin/PaymentStatusBadge";
+import { DeleteManuscriptButton } from "@/components/admin/DeleteManuscriptButton";
 import { formatDate } from "@/lib/utils";
 
 export const revalidate = 0;
@@ -217,6 +218,11 @@ export default async function AdminSubmissionsPage({ searchParams }: Submissions
                             <Download className="w-3.5 h-3.5" />
                           </Button>
                         )}
+
+                        <DeleteManuscriptButton
+                          id={sub._id.toString()}
+                          submissionId={sub.submissionId}
+                        />
                       </div>
                     </td>
                   </tr>

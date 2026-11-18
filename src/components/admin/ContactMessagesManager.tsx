@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Mail, Trash2, CheckCircle2, Clock, Eye, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface ContactMessagesManagerProps {
   initialMessages: any[];
@@ -42,7 +43,7 @@ export function ContactMessagesManager({ initialMessages }: ContactMessagesManag
 
       router.refresh();
     } catch (err: any) {
-      alert("Error: " + err.message);
+      toast.error("Error: " + err.message);
     }
   };
 
@@ -63,9 +64,10 @@ export function ContactMessagesManager({ initialMessages }: ContactMessagesManag
       if (selectedMessage && selectedMessage._id.toString() === id) {
         setSelectedMessage(null);
       }
+      toast.success("Contact message deleted.");
       router.refresh();
     } catch (err: any) {
-      alert("Error: " + err.message);
+      toast.error("Error: " + err.message);
     }
   };
 

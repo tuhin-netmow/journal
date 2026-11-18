@@ -10,10 +10,11 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     await connectToDatabase();
-    let settings = await JournalSettings.findOne();
+    let settings = await JournalSettings.findOne().lean();
 
     if (!settings) {
-      settings = await JournalSettings.create({});
+      const created = await JournalSettings.create({});
+      settings = created.toObject();
     }
 
     return NextResponse.json({ success: true, settings });
@@ -45,18 +46,25 @@ export async function PUT(req: NextRequest) {
 
     await connectToDatabase();
 
-    let settings = await JournalSettings.findOne();
-    if (settings) {
-      Object.assign(settings, validationResult.data);
-      await settings.save();
-    } else {
-      settings = await JournalSettings.create(validationResult.data);
+    // Clean update data: only update keys that were actually provided
+    const updateData: Record<string, any> = {};
+    for (const [key, val] of Object.entries(validationResult.data)) {
+      if (val !== undefined) {
+        updateData[key] = val;
+      }
     }
+
+    // Direct atomic update and return full updated document
+    const updatedSettings = await JournalSettings.findOneAndUpdate(
+      {},
+      { $set: updateData },
+      { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
+    ).lean();
 
     return NextResponse.json({
       success: true,
       message: "Journal settings updated successfully",
-      settings,
+      settings: updatedSettings,
     });
   } catch (error: any) {
     console.error("PUT /api/settings error:", error);
@@ -66,3 +74,6 @@ export async function PUT(req: NextRequest) {
     );
   }
 }
+
+export const PATCH = PUT;
+export const POST = PUT;

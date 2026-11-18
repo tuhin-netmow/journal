@@ -6,6 +6,7 @@ import { Users, Plus, Edit, Trash2, CheckCircle2, AlertCircle, User, ArrowUpDown
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 
 interface EditorialBoardManagerProps {
   initialMembers: any[];
@@ -86,6 +87,7 @@ export function EditorialBoardManager({ initialMembers }: EditorialBoardManagerP
       }
 
       setShowModal(false);
+      toast.success(editingId ? "Board member updated successfully!" : "Board member added successfully!");
       router.refresh();
 
       // Refresh members
@@ -94,6 +96,7 @@ export function EditorialBoardManager({ initialMembers }: EditorialBoardManagerP
       if (refreshData.members) setMembers(refreshData.members);
     } catch (err: any) {
       setError(err.message || "Failed to save member.");
+      toast.error(err.message || "Failed to save member.");
     } finally {
       setLoading(false);
     }
@@ -113,9 +116,10 @@ export function EditorialBoardManager({ initialMembers }: EditorialBoardManagerP
       }
 
       setMembers(members.filter((m) => m._id.toString() !== id));
+      toast.success(`Removed ${memberName} from editorial board.`);
       router.refresh();
     } catch (err: any) {
-      alert("Error: " + err.message);
+      toast.error("Error: " + err.message);
     }
   };
 

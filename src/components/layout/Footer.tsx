@@ -22,12 +22,26 @@ export function Footer({ settings }: FooterProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 mb-12">
           {/* Col 1: About Journal */}
           <div className="space-y-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-lg bg-royal flex items-center justify-center text-white">
-                <BookOpen className="w-5 h-5" />
-              </div>
-              <span className="font-serif font-bold text-xl tracking-tight">IJASR</span>
-            </div>
+            <Link href="/" className="inline-block">
+              {settings?.logo ? (
+                <div className="bg-white p-2.5 sm:p-3 rounded-xl inline-flex items-center justify-center shadow-md border border-white/20 hover:shadow-lg transition-shadow">
+                  <img
+                    src={settings.logo}
+                    alt={journalName}
+                    className="h-11 sm:h-12 w-auto max-w-[200px] sm:max-w-[240px] object-contain"
+                  />
+                </div>
+              ) : (
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-lg bg-royal flex items-center justify-center text-white">
+                    <BookOpen className="w-5 h-5" />
+                  </div>
+                  <span className="font-serif font-bold text-xl tracking-tight">
+                    {settings?.shortName || "IJASR"}
+                  </span>
+                </div>
+              )}
+            </Link>
             <p className="text-gray-300 text-sm leading-relaxed">
               {journalName} is an open-access, peer-reviewed international forum for disseminating groundbreaking scholarly research across multidisciplinary domains.
             </p>
@@ -135,15 +149,11 @@ export function Footer({ settings }: FooterProps) {
         </div>
 
         {/* Bottom copyright & attribution */}
-        <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row items-center justify-between text-xs text-gray-400 gap-4">
+        <div className="border-t border-white/20 pt-8 flex flex-col md:flex-row items-center justify-between text-xs text-gray-300 gap-4">
           <p>
-            © {currentYear} {journalName}. Published by {publisher}. All articles published under Creative Commons Attribution 4.0 (CC BY 4.0).
+            © {currentYear} {journalName}
           </p>
           <div className="flex items-center space-x-4">
-            <Link href="/admin" className="hover:text-gray-200 transition-colors">
-              Staff Portal
-            </Link>
-            <span>•</span>
             <Link href="/contact" className="hover:text-gray-200 transition-colors">
               Contact Support
             </Link>

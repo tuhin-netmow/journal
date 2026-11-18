@@ -7,6 +7,7 @@ import { Layers, Plus, Edit, Trash2, CheckCircle2, AlertCircle, Loader2 } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 
 interface VolumeManagerProps {
   initialVolumes: any[];
@@ -71,6 +72,7 @@ export function VolumeManager({ initialVolumes }: VolumeManagerProps) {
       }
 
       setShowModal(false);
+      toast.success(editingId ? "Volume updated successfully!" : "Volume created successfully!");
       router.refresh();
       // Reload volumes
       const refreshRes = await fetch("/api/volumes");
@@ -78,6 +80,7 @@ export function VolumeManager({ initialVolumes }: VolumeManagerProps) {
       if (refreshData.volumes) setVolumes(refreshData.volumes);
     } catch (err: any) {
       setError(err.message || "Failed to save volume.");
+      toast.error(err.message || "Failed to save volume.");
     } finally {
       setLoading(false);
     }
@@ -97,9 +100,10 @@ export function VolumeManager({ initialVolumes }: VolumeManagerProps) {
       }
 
       setVolumes(volumes.filter((v) => v._id.toString() !== id));
+      toast.success(`Volume ${volNum} deleted successfully!`);
       router.refresh();
     } catch (err: any) {
-      alert("Error: " + err.message);
+      toast.error("Error: " + err.message);
     }
   };
 

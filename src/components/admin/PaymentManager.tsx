@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { PaymentStatusBadge } from "@/components/admin/PaymentStatusBadge";
+import { toast } from "sonner";
 
 interface PaymentManagerProps {
   initialSettings: any;
@@ -70,7 +71,7 @@ export function PaymentManager({ initialSettings, manuscripts }: PaymentManagerP
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      alert("Please upload a valid image file (PNG, JPG, SVG, WebP).");
+      toast.error("Please upload a valid image file (PNG, JPG, SVG, WebP).");
       return;
     }
 
@@ -96,9 +97,10 @@ export function PaymentManager({ initialSettings, manuscripts }: PaymentManagerP
         throw new Error(d.error || "Failed to update payment status");
       }
 
+      toast.success("Payment status updated successfully!");
       router.refresh();
     } catch (err: any) {
-      alert("Error: " + err.message);
+      toast.error(err.message || "Failed to update payment status");
     }
   };
 
@@ -131,10 +133,12 @@ export function PaymentManager({ initialSettings, manuscripts }: PaymentManagerP
       }
 
       setSettingsSuccess("Payment settings and QR Code saved successfully!");
+      toast.success("Payment settings and QR Code saved successfully!");
       router.refresh();
       setTimeout(() => setSettingsSuccess(null), 3500);
     } catch (err: any) {
       setSettingsError(err.message || "Failed to save payment settings.");
+      toast.error(err.message || "Failed to save payment settings.");
     } finally {
       setSavingSettings(false);
     }

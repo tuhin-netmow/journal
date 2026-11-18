@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import mongoose from "mongoose";
 import connectToDatabase from "@/lib/mongodb";
 import Article from "@/models/Article";
@@ -139,56 +140,79 @@ export async function PUT(
 
     await article.save();
 
-    // If the article became published from draft, dispatch publication email to author
-    if (previousStatus !== "published" && article.status === "published") {
+    // If the article became published from draft, or if explicit notifyAuthors request is received
+    let emailDispatched = false;
+    let emailRecipients: string[] = [];
+
+    const shouldNotify =
+      (previousStatus !== "published" && article.status === "published") ||
+      ((data.notifyAuthors === true || data.notifyAuthors === "true") && article.status === "published");
+
+    if (shouldNotify) {
       try {
         const populated = await Article.findById(article._id)
           .populate("volume", "volumeNumber year")
           .populate("issue", "issueNumber");
 
-        let authorEmail = "";
-        let authorName = article.authors?.[0]?.name || "Author";
+        const recipientSet = new Set<string>();
 
+        // 1. Check all author emails in article (highest priority)
+        for (const author of article.authors || []) {
+          if (author.email && typeof author.email === "string" && author.email.includes("@")) {
+            recipientSet.add(author.email.trim().toLowerCase());
+          }
+        }
+
+        // 2. Also check sourceManuscript if linked
         if (article.sourceManuscript) {
           const sourceMS = await Manuscript.findById(article.sourceManuscript);
-          if (sourceMS?.authorEmail) {
-            authorEmail = sourceMS.authorEmail;
-            authorName = sourceMS.authorName || authorName;
-            await Manuscript.findByIdAndUpdate(article.sourceManuscript, { status: "published" });
+          if (sourceMS?.authorEmail && sourceMS.authorEmail.includes("@")) {
+            recipientSet.add(sourceMS.authorEmail.trim().toLowerCase());
           }
+          await Manuscript.findByIdAndUpdate(article.sourceManuscript, { status: "published" });
         }
 
-        if (!authorEmail && article.authors?.length) {
-          const authorWithEmail = article.authors.find((a: any) => a.email);
-          if (authorWithEmail?.email) {
-            authorEmail = authorWithEmail.email;
-            authorName = authorWithEmail.name || authorName;
-          }
-        }
+        emailRecipients = Array.from(recipientSet);
+        const primaryAuthorName = article.authors?.[0]?.name || "Author";
 
-        if (authorEmail) {
-          await sendArticlePublishedEmail(
-            {
-              title: article.title,
-              slug: article.slug,
-              doi: article.doi,
-              volume: populated?.volume,
-              issue: populated?.issue,
-              authors: article.authors,
-            },
-            authorEmail,
-            authorName
-          );
-        }
+        const emailResult = await sendArticlePublishedEmail(
+          {
+            title: article.title,
+            slug: article.slug,
+            doi: article.doi,
+            volume: populated?.volume,
+            issue: populated?.issue,
+            authors: article.authors,
+          },
+          emailRecipients,
+          primaryAuthorName
+        );
+
+        emailDispatched = !!emailResult?.success;
+        console.log(`[ArticlePublish:PUT] Published email dispatched: ${emailDispatched}, recipients: ${emailRecipients.join(", ")}`);
       } catch (emailErr) {
-        console.error("Non-fatal publication email dispatch error:", emailErr);
+        console.error("Non-fatal publication email dispatch error in PUT:", emailErr);
       }
+    }
+
+    try {
+      revalidatePath("/");
+      revalidatePath("/archives");
+      revalidatePath("/current-issue");
+      revalidatePath("/admin/articles");
+      if (article?.slug) {
+        revalidatePath(`/articles/${article.slug}`);
+      }
+    } catch {
+      // Revalidation in background
     }
 
     return NextResponse.json({
       success: true,
       message: "Article updated successfully",
       article,
+      emailDispatched,
+      emailRecipients,
     });
   } catch (error: any) {
     console.error("PUT /api/articles/[id] error:", error);
@@ -227,6 +251,15 @@ export async function DELETE(
     }
 
     await Article.findByIdAndDelete(id);
+
+    try {
+      revalidatePath("/");
+      revalidatePath("/archives");
+      revalidatePath("/current-issue");
+      revalidatePath("/admin/articles");
+    } catch {
+      // Revalidation in background
+    }
 
     return NextResponse.json({
       success: true,

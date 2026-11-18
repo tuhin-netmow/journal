@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import connectToDatabase from "@/lib/mongodb";
 import Article from "@/models/Article";
 import Volume from "@/models/Volume";
@@ -174,53 +175,70 @@ export async function POST(req: NextRequest) {
       await Manuscript.findByIdAndUpdate(validData.sourceManuscript, { status: "published" });
     }
 
-    // If published, dispatch celebratory publication email to the author
+    // If published, dispatch celebratory publication email to the authors & editorial office
+    let emailDispatched = false;
+    let emailRecipients: string[] = [];
+
     if (newArticle.status === "published") {
       try {
-        let authorEmail = "";
-        let authorName = newArticle.authors?.[0]?.name || "Author";
+        const recipientSet = new Set<string>();
 
-        // 1. Check sourceManuscript
+        // 1. Check all author emails entered in article form (highest priority)
+        for (const author of newArticle.authors || []) {
+          if (author.email && typeof author.email === "string" && author.email.includes("@")) {
+            recipientSet.add(author.email.trim().toLowerCase());
+          }
+        }
+
+        // 2. Also check sourceManuscript authorEmail if linked
         if (newArticle.sourceManuscript) {
           const sourceMS = await Manuscript.findById(newArticle.sourceManuscript);
-          if (sourceMS?.authorEmail) {
-            authorEmail = sourceMS.authorEmail;
-            authorName = sourceMS.authorName || authorName;
+          if (sourceMS?.authorEmail && sourceMS.authorEmail.includes("@")) {
+            recipientSet.add(sourceMS.authorEmail.trim().toLowerCase());
           }
         }
 
-        // 2. Check author list for email if not found in source manuscript
-        if (!authorEmail && newArticle.authors?.length) {
-          const authorWithEmail = newArticle.authors.find((a: any) => a.email);
-          if (authorWithEmail?.email) {
-            authorEmail = authorWithEmail.email;
-            authorName = authorWithEmail.name || authorName;
-          }
-        }
+        emailRecipients = Array.from(recipientSet);
+        const primaryAuthorName = newArticle.authors?.[0]?.name || "Author";
 
-        if (authorEmail) {
-          await sendArticlePublishedEmail(
-            {
-              title: newArticle.title,
-              slug: newArticle.slug,
-              doi: newArticle.doi,
-              volume: volumeDoc,
-              issue: issueDoc,
-              authors: newArticle.authors,
-            },
-            authorEmail,
-            authorName
-          );
-        }
+        const emailResult = await sendArticlePublishedEmail(
+          {
+            title: newArticle.title,
+            slug: newArticle.slug,
+            doi: newArticle.doi,
+            volume: volumeDoc,
+            issue: issueDoc,
+            authors: newArticle.authors,
+          },
+          emailRecipients,
+          primaryAuthorName
+        );
+
+        emailDispatched = !!emailResult?.success;
+        console.log(`[ArticlePublish] Published email dispatched: ${emailDispatched}, recipients: ${emailRecipients.join(", ")}`);
       } catch (emailErr) {
         console.error("Non-fatal publication email dispatch error:", emailErr);
       }
+    }
+
+    try {
+      revalidatePath("/");
+      revalidatePath("/archives");
+      revalidatePath("/current-issue");
+      revalidatePath("/admin/articles");
+      if (newArticle?.slug) {
+        revalidatePath(`/articles/${newArticle.slug}`);
+      }
+    } catch {
+      // Revalidation in background
     }
 
     return NextResponse.json({
       success: true,
       message: "Article created successfully",
       article: newArticle,
+      emailDispatched,
+      emailRecipients,
     }, { status: 201 });
   } catch (error: any) {
     console.error("POST /api/articles error:", error);

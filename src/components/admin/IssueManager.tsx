@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { formatDate } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface IssueManagerProps {
   initialIssues: any[];
@@ -93,6 +94,7 @@ export function IssueManager({ initialIssues, volumes, selectedVolumeId = "all" 
       }
 
       setShowModal(false);
+      toast.success(editingId ? "Issue updated successfully!" : "Issue created successfully!");
       router.refresh();
 
       // Reload issues
@@ -101,6 +103,7 @@ export function IssueManager({ initialIssues, volumes, selectedVolumeId = "all" 
       if (refreshData.issues) setIssues(refreshData.issues);
     } catch (err: any) {
       setError(err.message || "Failed to save issue.");
+      toast.error(err.message || "Failed to save issue.");
     } finally {
       setLoading(false);
     }
@@ -128,9 +131,10 @@ export function IssueManager({ initialIssues, volumes, selectedVolumeId = "all" 
           i._id.toString() === iss._id.toString() ? { ...i, status: newStatus } : i
         )
       );
+      toast.success(`Issue status changed to ${newStatus}.`);
       router.refresh();
     } catch (err: any) {
-      alert("Error: " + err.message);
+      toast.error("Error: " + err.message);
     }
   };
 
@@ -148,9 +152,10 @@ export function IssueManager({ initialIssues, volumes, selectedVolumeId = "all" 
       }
 
       setIssues(issues.filter((i) => i._id.toString() !== id));
+      toast.success(`Deleted ${titleStr} successfully!`);
       router.refresh();
     } catch (err: any) {
-      alert("Error: " + err.message);
+      toast.error("Error: " + err.message);
     }
   };
 

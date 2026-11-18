@@ -1,29 +1,42 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { BookOpen, Lock, Mail, AlertCircle, Loader2 } from "lucide-react";
+import { BookOpen, Lock, Mail, AlertCircle, Loader2, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+
+const defaultAdminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "admin@journal.ac.org";
+const defaultAdminPassword = "AdminPassword2026!";
 
 export default function AdminLoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [oneClickLoading, setOneClickLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [logo, setLogo] = useState<string | null>(null);
+  const [shortName, setShortName] = useState("IJASR");
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.settings?.logo) setLogo(data.settings.logo);
+        if (data?.settings?.shortName) setShortName(data.settings.shortName);
+      })
+      .catch(() => {});
+  }, []);
+
+  const performLogin = async (loginEmail: string, loginPass: string) => {
     setError(null);
-    setLoading(true);
-
     try {
       const result = await signIn("credentials", {
         redirect: false,
-        email,
-        password,
+        email: loginEmail,
+        password: loginPass,
       });
 
       if (result?.error) {
@@ -34,9 +47,22 @@ export default function AdminLoginPage() {
       }
     } catch (err: any) {
       setError(err?.message || "Failed to authenticate.");
-    } finally {
-      setLoading(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    await performLogin(email, password);
+    setLoading(false);
+  };
+
+  const handleOneClickLogin = async () => {
+    setEmail(defaultAdminEmail);
+    setPassword(defaultAdminPassword);
+    setOneClickLoading(true);
+    await performLogin(defaultAdminEmail, defaultAdminPassword);
+    setOneClickLoading(false);
   };
 
   return (
@@ -44,21 +70,31 @@ export default function AdminLoginPage() {
       <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-academic-border overflow-hidden">
         {/* Header */}
         <div className="bg-gradient-to-r from-navy via-navy to-royal text-white p-8 text-center space-y-3">
-          <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center mx-auto text-white shadow-inner">
-            <BookOpen className="w-6 h-6" />
-          </div>
+          {logo ? (
+            <div className="bg-white p-3 rounded-2xl inline-flex items-center justify-center mx-auto shadow-lg border border-white/30">
+              <img
+                src={logo}
+                alt="Journal Logo"
+                className="h-13 sm:h-15 w-auto max-w-[220px] object-contain"
+              />
+            </div>
+          ) : (
+            <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center mx-auto text-white shadow-inner">
+              <BookOpen className="w-6 h-6" />
+            </div>
+          )}
           <div>
             <h1 className="font-serif font-bold text-2xl text-white">
-              IJASR Editorial Portal
+              {shortName} Editorial Portal
             </h1>
             <p className="text-xs text-gray-300 mt-1">
-              Authorized Staff & Administrator Login Only
+              Authorized Staff & Administrator Login
             </p>
           </div>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-8 space-y-5">
+        <div className="p-8 space-y-5">
           {error && (
             <div className="bg-rose-50 border border-rose-200 text-rose-800 p-3 rounded-lg flex items-center space-x-2 text-xs">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
@@ -66,66 +102,103 @@ export default function AdminLoginPage() {
             </div>
           )}
 
-          <div>
-            <label className="block text-xs font-semibold text-academic-text mb-1.5">
-              Admin Email Address
-            </label>
-            <div className="relative">
-              <Input
-                type="email"
-                required
-                placeholder="admin@journal.ac.org"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="pl-9"
-              />
-              <Mail className="w-4 h-4 text-academic-muted absolute left-3 top-3" />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-academic-text mb-1.5">
-              Password
-            </label>
-            <div className="relative">
-              <Input
-                type="password"
-                required
-                placeholder="••••••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="pl-9"
-              />
-              <Lock className="w-4 h-4 text-academic-muted absolute left-3 top-3" />
-            </div>
-          </div>
-
+          {/* 1-Click Fast Login Button */}
           <Button
-            type="submit"
-            variant="royal"
-            disabled={loading}
-            className="w-full py-2.5 font-semibold text-sm shadow-md"
+            type="button"
+            onClick={handleOneClickLogin}
+            disabled={oneClickLoading || loading}
+            variant="teal"
+            className="w-full py-2.5 font-bold text-sm shadow-md space-x-2 bg-teal hover:bg-teal-dark transition-all cursor-pointer"
           >
-            {loading ? (
+            {oneClickLoading ? (
               <span className="flex items-center space-x-2">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Signing in...</span>
+                <span>Authenticating Admin...</span>
               </span>
             ) : (
-              <span>Sign In to Dashboard</span>
+              <span className="flex items-center space-x-2">
+                <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
+                <span>1-Click Quick Admin Login</span>
+              </span>
             )}
           </Button>
 
-          <div className="pt-2 text-center">
-            <span className="text-[11px] text-academic-muted">
-              Demo admin credentials from .env.local:
-              <br />
-              <code className="text-[10px] bg-gray-100 px-1 py-0.5 rounded">
-                admin@journal.ac.org / AdminPassword2026!
-              </code>
+          <div className="relative flex py-1 items-center">
+            <div className="flex-grow border-t border-gray-200"></div>
+            <span className="flex-shrink mx-3 text-[11px] text-academic-muted uppercase font-semibold">
+              Or Sign In with Credentials
             </span>
+            <div className="flex-grow border-t border-gray-200"></div>
           </div>
-        </form>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-academic-text mb-1.5">
+                Admin Email Address
+              </label>
+              <div className="relative">
+                <Input
+                  type="email"
+                  required
+                  placeholder="admin@journal.ac.org"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="pl-9"
+                />
+                <Mail className="w-4 h-4 text-academic-muted absolute left-3 top-3" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-academic-text mb-1.5">
+                Password
+              </label>
+              <div className="relative">
+                <Input
+                  type="password"
+                  required
+                  placeholder="••••••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="pl-9"
+                />
+                <Lock className="w-4 h-4 text-academic-muted absolute left-3 top-3" />
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              variant="royal"
+              disabled={loading || oneClickLoading}
+              className="w-full py-2.5 font-semibold text-sm shadow-md cursor-pointer"
+            >
+              {loading ? (
+                <span className="flex items-center space-x-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Signing in...</span>
+                </span>
+              ) : (
+                <span>Sign In to Dashboard</span>
+              )}
+            </Button>
+          </form>
+
+          <div className="pt-2 text-center">
+            <button
+              type="button"
+              onClick={() => {
+                setEmail(defaultAdminEmail);
+                setPassword(defaultAdminPassword);
+              }}
+              className="text-[11px] text-academic-muted hover:text-royal transition-colors cursor-pointer"
+            >
+              Click to autofill credentials: <br />
+              <code className="text-[10px] bg-gray-100 px-1.5 py-0.5 rounded text-navy font-semibold">
+                {defaultAdminEmail} / {defaultAdminPassword}
+              </code>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

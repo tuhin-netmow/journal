@@ -9,10 +9,11 @@ interface AdminLayoutClientProps {
     name?: string | null;
     email?: string | null;
   };
+  settings?: any;
   children: React.ReactNode;
 }
 
-export function AdminLayoutClient({ user, children }: AdminLayoutClientProps) {
+export function AdminLayoutClient({ user, settings, children }: AdminLayoutClientProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
@@ -29,6 +30,9 @@ export function AdminLayoutClient({ user, children }: AdminLayoutClientProps) {
       <AdminSidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        logo={settings?.logo}
+        journalName={settings?.journalName}
+        shortName={settings?.shortName}
       />
 
       {/* Main Content Area - offset by 16rem (64) for fixed sidebar on desktop */}

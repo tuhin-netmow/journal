@@ -5,6 +5,7 @@ import { Upload, Plus, Trash2, CheckCircle2, AlertCircle, FileText, Loader2, Arr
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 
 interface CoAuthor {
   name: string;
@@ -130,8 +131,11 @@ export function ManuscriptSubmissionForm() {
         submissionId: data.submissionId,
         message: data.message,
       });
+      toast.success(`Manuscript submitted successfully! Ref: ${data.submissionId}`);
     } catch (err: any) {
-      setErrorMessage(err.message || "Failed to submit manuscript.");
+      const msg = err.message || "Failed to submit manuscript.";
+      setErrorMessage(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }

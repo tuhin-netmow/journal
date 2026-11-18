@@ -11,6 +11,7 @@ export const metadata = {
   description: "Browse scholarly articles published in the current issue of the International Journal of Advanced Scientific Research.",
 };
 
+export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function CurrentIssuePage() {

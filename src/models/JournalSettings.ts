@@ -29,9 +29,18 @@ const JournalSettingsSchema = new Schema<IJournalSettings>(
       default:
         "Please include your Submission ID (e.g. MS-2026-XXXX) as the payment reference or note during checkout. After completing the payment, our editorial office will manually verify the transaction within 24-48 business hours.",
     },
+    mailgunApiKey: { type: String, default: "" },
+    mailgunDomain: { type: String, default: "" },
+    mailgunUrl: { type: String, default: "https://api.mailgun.net" },
+    mailgunFrom: { type: String, default: '"IJASR Editorial Office" <editorial@journal.ac.org>' },
   },
-  { timestamps: true }
+  { timestamps: true, strict: false }
 );
+
+// Delete cached model in dev mode so schema updates are never blocked by HMR cache
+if (process.env.NODE_ENV !== "production" && mongoose.models.JournalSettings) {
+  delete (mongoose.models as any).JournalSettings;
+}
 
 const JournalSettings: Model<IJournalSettings> =
   models.JournalSettings ||

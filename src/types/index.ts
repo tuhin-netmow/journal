@@ -132,6 +132,10 @@ export interface IJournalSettings {
   paymentLink?: string;
   paymentQrCode?: string;
   paymentInstructions?: string;
+  mailgunApiKey?: string;
+  mailgunDomain?: string;
+  mailgunUrl?: string;
+  mailgunFrom?: string;
 }
 
 export interface IPageContent {
