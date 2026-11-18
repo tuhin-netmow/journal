@@ -20,6 +20,7 @@ export interface IPdfFile {
 export interface ICoAuthor {
   name: string;
   affiliation?: string;
+  email?: string;
 }
 
 export interface IUser {

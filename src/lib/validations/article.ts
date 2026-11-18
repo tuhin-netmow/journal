@@ -8,6 +8,7 @@ export const articleSchema = z.object({
       z.object({
         name: z.string().min(1, "Author name is required"),
         affiliation: z.string().optional(),
+        email: z.string().email().optional().or(z.literal("")),
       })
     )
     .min(1, "At least one author is required"),

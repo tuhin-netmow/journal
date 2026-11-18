@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import connectToDatabase from "@/lib/mongodb";
 import Article from "@/models/Article";
+import Manuscript from "@/models/Manuscript";
 import { getAdminSession } from "@/lib/auth";
 import { saveFile, deleteFile } from "@/lib/storage";
 import { slugify } from "@/lib/utils";
+import { sendArticlePublishedEmail } from "@/lib/email";
 
 // GET /api/articles/[id] - Retrieve single article (by id or slug)
 export async function GET(
@@ -62,6 +64,8 @@ export async function PUT(
     if (!article) {
       return NextResponse.json({ error: "Article not found" }, { status: 404 });
     }
+
+    const previousStatus = article.status;
 
     const contentType = req.headers.get("content-type") || "";
     let data: any = {};
@@ -134,6 +138,52 @@ export async function PUT(
     }
 
     await article.save();
+
+    // If the article became published from draft, dispatch publication email to author
+    if (previousStatus !== "published" && article.status === "published") {
+      try {
+        const populated = await Article.findById(article._id)
+          .populate("volume", "volumeNumber year")
+          .populate("issue", "issueNumber");
+
+        let authorEmail = "";
+        let authorName = article.authors?.[0]?.name || "Author";
+
+        if (article.sourceManuscript) {
+          const sourceMS = await Manuscript.findById(article.sourceManuscript);
+          if (sourceMS?.authorEmail) {
+            authorEmail = sourceMS.authorEmail;
+            authorName = sourceMS.authorName || authorName;
+            await Manuscript.findByIdAndUpdate(article.sourceManuscript, { status: "published" });
+          }
+        }
+
+        if (!authorEmail && article.authors?.length) {
+          const authorWithEmail = article.authors.find((a: any) => a.email);
+          if (authorWithEmail?.email) {
+            authorEmail = authorWithEmail.email;
+            authorName = authorWithEmail.name || authorName;
+          }
+        }
+
+        if (authorEmail) {
+          await sendArticlePublishedEmail(
+            {
+              title: article.title,
+              slug: article.slug,
+              doi: article.doi,
+              volume: populated?.volume,
+              issue: populated?.issue,
+              authors: article.authors,
+            },
+            authorEmail,
+            authorName
+          );
+        }
+      } catch (emailErr) {
+        console.error("Non-fatal publication email dispatch error:", emailErr);
+      }
+    }
 
     return NextResponse.json({
       success: true,

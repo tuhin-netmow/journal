@@ -37,10 +37,10 @@ export function ArticleForm({
 
   const [title, setTitle] = useState(initialData.title || "");
   const [slug, setSlug] = useState(initialData.slug || "");
-  const [authors, setAuthors] = useState<Array<{ name: string; affiliation: string }>>(
+  const [authors, setAuthors] = useState<Array<{ name: string; affiliation: string; email?: string }>>(
     initialData.authors?.length
       ? initialData.authors
-      : [{ name: "", affiliation: "" }]
+      : [{ name: "", affiliation: "", email: "" }]
   );
   const [abstract, setAbstract] = useState(initialData.abstract || "");
   const [keywords, setKeywords] = useState(
@@ -93,7 +93,7 @@ export function ArticleForm({
   };
 
   const addAuthor = () => {
-    setAuthors([...authors, { name: "", affiliation: "" }]);
+    setAuthors([...authors, { name: "", affiliation: "", email: "" }]);
   };
 
   const removeAuthor = (index: number) => {
@@ -102,7 +102,7 @@ export function ArticleForm({
     }
   };
 
-  const updateAuthor = (index: number, field: "name" | "affiliation", val: string) => {
+  const updateAuthor = (index: number, field: "name" | "affiliation" | "email", val: string) => {
     const updated = [...authors];
     updated[index][field] = val;
     setAuthors(updated);
@@ -392,22 +392,29 @@ export function ArticleForm({
             >
               <Input
                 required
-                placeholder="Author Name"
+                placeholder="Author Name *"
                 value={auth.name}
                 onChange={(e) => updateAuthor(index, "name", e.target.value)}
-                className="sm:w-1/2"
+                className="sm:w-1/3"
               />
               <Input
                 placeholder="Institutional Affiliation"
                 value={auth.affiliation}
                 onChange={(e) => updateAuthor(index, "affiliation", e.target.value)}
-                className="sm:w-1/2"
+                className="sm:w-1/3"
+              />
+              <Input
+                type="email"
+                placeholder="Author Email (for notice)"
+                value={auth.email || ""}
+                onChange={(e) => updateAuthor(index, "email", e.target.value)}
+                className="sm:w-1/3"
               />
               {authors.length > 1 && (
                 <button
                   type="button"
                   onClick={() => removeAuthor(index)}
-                  className="text-rose-600 hover:text-rose-800 p-2"
+                  className="text-rose-600 hover:text-rose-800 p-2 cursor-pointer shrink-0"
                   title="Remove author"
                 >
                   <Trash2 className="w-4 h-4" />

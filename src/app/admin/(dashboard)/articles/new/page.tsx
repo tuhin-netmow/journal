@@ -34,7 +34,7 @@ export default async function AdminNewArticlePage({
         title: manuscript.title,
         slug: slugify(manuscript.title),
         authors: [
-          { name: manuscript.authorName, affiliation: manuscript.institution },
+          { name: manuscript.authorName, affiliation: manuscript.institution, email: manuscript.authorEmail },
           ...(manuscript.coAuthors || []),
         ],
         abstract: manuscript.abstract,

@@ -8,6 +8,7 @@ import { getAdminSession } from "@/lib/auth";
 import { articleSchema } from "@/lib/validations/article";
 import { saveFile } from "@/lib/storage";
 import { slugify } from "@/lib/utils";
+import { sendArticlePublishedEmail } from "@/lib/email";
 
 // GET /api/articles - List articles (public: published only; admin: all)
 export async function GET(req: NextRequest) {
@@ -171,6 +172,49 @@ export async function POST(req: NextRequest) {
     // If published and sourceManuscript exists, update manuscript status
     if (validData.status === "published" && validData.sourceManuscript) {
       await Manuscript.findByIdAndUpdate(validData.sourceManuscript, { status: "published" });
+    }
+
+    // If published, dispatch celebratory publication email to the author
+    if (newArticle.status === "published") {
+      try {
+        let authorEmail = "";
+        let authorName = newArticle.authors?.[0]?.name || "Author";
+
+        // 1. Check sourceManuscript
+        if (newArticle.sourceManuscript) {
+          const sourceMS = await Manuscript.findById(newArticle.sourceManuscript);
+          if (sourceMS?.authorEmail) {
+            authorEmail = sourceMS.authorEmail;
+            authorName = sourceMS.authorName || authorName;
+          }
+        }
+
+        // 2. Check author list for email if not found in source manuscript
+        if (!authorEmail && newArticle.authors?.length) {
+          const authorWithEmail = newArticle.authors.find((a: any) => a.email);
+          if (authorWithEmail?.email) {
+            authorEmail = authorWithEmail.email;
+            authorName = authorWithEmail.name || authorName;
+          }
+        }
+
+        if (authorEmail) {
+          await sendArticlePublishedEmail(
+            {
+              title: newArticle.title,
+              slug: newArticle.slug,
+              doi: newArticle.doi,
+              volume: volumeDoc,
+              issue: issueDoc,
+              authors: newArticle.authors,
+            },
+            authorEmail,
+            authorName
+          );
+        }
+      } catch (emailErr) {
+        console.error("Non-fatal publication email dispatch error:", emailErr);
+      }
     }
 
     return NextResponse.json({

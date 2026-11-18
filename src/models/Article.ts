@@ -8,6 +8,7 @@ const CoAuthorSchema = new Schema(
   {
     name: { type: String, required: true },
     affiliation: { type: String },
+    email: { type: String },
   },
   { _id: false }
 );

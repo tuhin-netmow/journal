@@ -5,6 +5,7 @@ import { getAdminSession } from "@/lib/auth";
 import { manuscriptSubmissionSchema } from "@/lib/validations/manuscript";
 import { saveFile } from "@/lib/storage";
 import { generateSubmissionId } from "@/lib/utils";
+import { sendManuscriptSubmissionEmail } from "@/lib/email";
 
 // In-memory rate limiting map (IP -> timestamps)
 const rateLimitMap = new Map<string, number[]>();
@@ -195,6 +196,22 @@ export async function POST(req: NextRequest) {
       status: "submitted",
       paymentStatus: "pending",
     });
+
+    // Send confirmation email to author and notification to editorial desk
+    try {
+      await sendManuscriptSubmissionEmail({
+        submissionId: newManuscript.submissionId,
+        authorName: newManuscript.authorName,
+        authorEmail: newManuscript.authorEmail,
+        title: newManuscript.title,
+        manuscriptType: newManuscript.manuscriptType,
+        category: newManuscript.category,
+        institution: newManuscript.institution,
+        country: newManuscript.country,
+      });
+    } catch (emailErr) {
+      console.error("Non-fatal email dispatch error:", emailErr);
+    }
 
     return NextResponse.json(
       {
