@@ -52,25 +52,6 @@ A complete, production-oriented Academic Journal Publishing Website with an Admi
 
 Create `.env.local` in the project root:
 
-```env
-MONGODB_URI=mongodb://jsmad_admin:JsmadCluster2026!@147.182.217.224:27021/jsmad?authSource=admin
-AUTH_SECRET=your-random-32-character-secret-key
-AUTH_URL=http://localhost:3000
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=your-random-32-character-secret-key
-
-ADMIN_EMAIL=admin@journal.ac.org
-ADMIN_PASSWORD=AdminPassword2026!
-
-# Optional S3 Storage Configuration (if left empty, falls back to secure server-side storage at ./storage/uploads)
-S3_ENDPOINT=
-S3_REGION=us-east-1
-S3_BUCKET=
-S3_ACCESS_KEY_ID=
-S3_SECRET_ACCESS_KEY=
-
-NEXT_PUBLIC_SITE_URL=http://localhost:3000
-```
 
 ---
 
