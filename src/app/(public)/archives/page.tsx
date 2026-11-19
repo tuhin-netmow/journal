@@ -8,6 +8,7 @@ import { BookOpen, Calendar, Search, Layers, Filter } from "lucide-react";
 import { ArticleCard } from "@/components/journal/ArticleCard";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Pagination } from "@/components/ui/pagination";
 
 export const metadata = {
   title: "Journal Archives",
@@ -23,6 +24,8 @@ interface ArchivesPageProps {
     volume?: string;
     issue?: string;
     category?: string;
+    page?: string;
+    limit?: string;
   }>;
 }
 
@@ -34,6 +37,10 @@ export default async function ArchivesPage({ searchParams }: ArchivesPageProps) 
   const queryVolume = sp.volume || "";
   const queryIssue = sp.issue || "";
   const queryCategory = sp.category || "";
+
+  const page = Math.max(1, parseInt(sp.page || "1", 10) || 1);
+  const limit = Math.max(1, Math.min(100, parseInt(sp.limit || "10", 10) || 10));
+  const skip = (page - 1) * limit;
 
   // Fetch all volumes sorted descending
   const volumes = await Volume.find().sort({ volumeNumber: -1 }).lean();
@@ -87,11 +94,18 @@ export default async function ArchivesPage({ searchParams }: ArchivesPageProps) 
     ];
   }
 
-  const articles = await Article.find(articleQuery)
-    .populate("volume", "volumeNumber year")
-    .populate("issue", "issueNumber title publicationDate")
-    .sort({ publicationDate: -1, createdAt: -1 })
-    .lean();
+  const [articles, totalCount] = await Promise.all([
+    Article.find(articleQuery)
+      .populate("volume", "volumeNumber year")
+      .populate("issue", "issueNumber title publicationDate")
+      .sort({ publicationDate: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    Article.countDocuments(articleQuery),
+  ]);
+
+  const totalPages = Math.ceil(totalCount / limit) || 1;
 
   // Get distinct categories
   const categories = await Article.distinct("category", { status: "published" });
@@ -160,24 +174,35 @@ export default async function ArchivesPage({ searchParams }: ArchivesPageProps) 
           </form>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Left Column: Volume & Issue Tree Navigation */}
-          <div className="lg:col-span-1 space-y-6">
-            <div className="bg-white rounded-xl border border-academic-border p-5 shadow-sm space-y-4">
-              <div className="flex items-center space-x-2 pb-3 border-b border-gray-100">
-                <Layers className="w-4 h-4 text-royal" />
-                <h3 className="font-serif font-bold text-navy text-sm">
-                  Browse by Volume
-                </h3>
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
+          {/* Left Column: Volume & Issue Tree Navigation (Sticky) */}
+          <div className="lg:col-span-1 lg:sticky lg:top-24 space-y-6">
+            <div className="bg-white rounded-xl border border-academic-border p-5 shadow-sm space-y-4 max-h-[calc(100vh-8rem)] overflow-y-auto">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div className="flex items-center space-x-2">
+                  <Layers className="w-4 h-4 text-royal" />
+                  <h3 className="font-serif font-bold text-navy text-sm">
+                    Browse by Volume
+                  </h3>
+                </div>
+                {(queryVolume || queryIssue) && (
+                  <Link
+                    href={`/archives${querySearch ? `?q=${encodeURIComponent(querySearch)}` : ""}${queryCategory && queryCategory !== "all" ? `${querySearch ? "&" : "?"}category=${encodeURIComponent(queryCategory)}` : ""}`}
+                    className="text-[11px] text-royal hover:underline font-medium"
+                    title="Clear volume/issue filter"
+                  >
+                    Clear Filter
+                  </Link>
+                )}
               </div>
 
               <div className="space-y-4">
                 {Object.values(volumeTree).map(({ volume, issues }) => (
                   <div key={volume._id.toString()} className="space-y-2">
                     <Link
-                      href={`/archives?volume=${volume._id.toString()}`}
+                      href={`/archives?volume=${volume._id.toString()}${querySearch ? `&q=${encodeURIComponent(querySearch)}` : ""}${queryCategory && queryCategory !== "all" ? `&category=${encodeURIComponent(queryCategory)}` : ""}`}
                       className={`block font-serif font-bold text-xs uppercase tracking-wide hover:text-royal transition-colors ${
-                        queryVolume === volume._id.toString() ? "text-royal font-black" : "text-navy"
+                        queryVolume === volume._id.toString() && !queryIssue ? "text-royal font-black" : "text-navy"
                       }`}
                     >
                       Volume {volume.volumeNumber} ({volume.year})
@@ -188,7 +213,7 @@ export default async function ArchivesPage({ searchParams }: ArchivesPageProps) 
                         {issues.map((iss: any) => (
                           <li key={iss._id.toString()}>
                             <Link
-                              href={`/archives?volume=${volume._id.toString()}&issue=${iss._id.toString()}`}
+                              href={`/archives?volume=${volume._id.toString()}&issue=${iss._id.toString()}${querySearch ? `&q=${encodeURIComponent(querySearch)}` : ""}${queryCategory && queryCategory !== "all" ? `&category=${encodeURIComponent(queryCategory)}` : ""}`}
                               className={`hover:text-royal transition-colors block py-0.5 ${
                                 queryIssue === iss._id.toString()
                                   ? "text-royal font-bold"
@@ -213,10 +238,22 @@ export default async function ArchivesPage({ searchParams }: ArchivesPageProps) 
 
           {/* Right Column: Article Search Results */}
           <div className="lg:col-span-3 space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="font-serif font-bold text-xl text-navy">
-                {articles.length} {articles.length === 1 ? "Article" : "Articles"} Found
-              </h2>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-academic-border pb-4">
+              <div>
+                <h2 className="font-serif font-bold text-xl text-navy">
+                  {totalCount} {totalCount === 1 ? "Article" : "Articles"} Found
+                </h2>
+                {(querySearch || queryVolume || queryIssue || (queryCategory && queryCategory !== "all")) && (
+                  <p className="text-xs text-academic-muted mt-0.5">
+                    Showing filtered research papers matching your query
+                  </p>
+                )}
+              </div>
+              {totalPages > 1 && (
+                <span className="text-xs text-academic-muted font-medium bg-white px-3 py-1.5 rounded-lg border border-academic-border shadow-2xs self-start sm:self-auto">
+                  Page <strong className="text-navy">{page}</strong> of <strong className="text-navy">{totalPages}</strong>
+                </span>
+              )}
             </div>
 
             {articles.length === 0 ? (
@@ -226,13 +263,39 @@ export default async function ArchivesPage({ searchParams }: ArchivesPageProps) 
                 <p className="text-xs text-academic-muted mt-1 max-w-sm mx-auto">
                   Try adjusting your search keywords or clearing applied filters.
                 </p>
+                <div className="mt-4">
+                  <Button href="/archives" variant="outline" size="sm">
+                    Clear All Filters
+                  </Button>
+                </div>
               </div>
             ) : (
-              <div className="space-y-4">
-                {articles.map((art: any) => (
-                  <ArticleCard key={art._id.toString()} article={art} />
-                ))}
-              </div>
+              <>
+                <div className="space-y-4">
+                  {articles.map((art: any) => (
+                    <ArticleCard key={art._id.toString()} article={art} />
+                  ))}
+                </div>
+
+                {/* Server-side Pagination */}
+                <div className="bg-white rounded-xl border border-academic-border shadow-sm overflow-hidden">
+                  <Pagination
+                    currentPage={page}
+                    totalPages={totalPages}
+                    totalItems={totalCount}
+                    limit={limit}
+                    baseUrl="/archives"
+                    searchParams={{
+                      q: querySearch || undefined,
+                      category: queryCategory && queryCategory !== "all" ? queryCategory : undefined,
+                      volume: queryVolume || undefined,
+                      issue: queryIssue || undefined,
+                      limit: sp.limit || undefined,
+                    }}
+                    itemName="articles"
+                  />
+                </div>
+              </>
             )}
           </div>
         </div>
