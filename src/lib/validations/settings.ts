@@ -13,6 +13,8 @@ export const journalSettingsSchema = z.object({
   logo: z.string().optional().or(z.literal("")),
   primaryColor: z.string().optional().or(z.literal("")),
   secondaryColor: z.string().optional().or(z.literal("")),
+  categories: z.array(z.string().trim().min(1)).optional(),
+  manuscriptTypes: z.array(z.string().trim().min(1)).optional(),
   paymentFee: z.coerce.number().min(0).optional(),
   paymentCurrency: z.string().optional().or(z.literal("")),
   paymentProvider: z.string().optional().or(z.literal("")),

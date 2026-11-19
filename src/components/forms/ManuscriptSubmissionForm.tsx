@@ -1,18 +1,38 @@
 "use client";
 
 import React, { useState } from "react";
-import { Upload, Plus, Trash2, CheckCircle2, AlertCircle, FileText, Loader2, ArrowRight } from "lucide-react";
+import { Upload, Plus, Trash2, CheckCircle2, AlertCircle, FileText, Loader2, ArrowRight, X, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { toast } from "sonner";
+import { getApiResponseError, getErrorMessage } from "@/lib/utils";
+import { DEFAULT_CATEGORIES, DEFAULT_MANUSCRIPT_TYPES } from "@/lib/constants";
 
 interface CoAuthor {
   name: string;
   affiliation: string;
 }
 
-export function ManuscriptSubmissionForm() {
+interface ManuscriptSubmissionFormProps {
+  initialCategories?: string[];
+  initialManuscriptTypes?: string[];
+}
+
+export function ManuscriptSubmissionForm({
+  initialCategories,
+  initialManuscriptTypes,
+}: ManuscriptSubmissionFormProps) {
+  const categories =
+    initialCategories && initialCategories.length > 0
+      ? initialCategories
+      : DEFAULT_CATEGORIES;
+  const manuscriptTypes =
+    initialManuscriptTypes && initialManuscriptTypes.length > 0
+      ? initialManuscriptTypes
+      : DEFAULT_MANUSCRIPT_TYPES;
+
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submissionSuccess, setSubmissionSuccess] = useState<{
@@ -29,10 +49,13 @@ export function ManuscriptSubmissionForm() {
   const [country, setCountry] = useState("");
 
   const [title, setTitle] = useState("");
-  const [manuscriptType, setManuscriptType] = useState("Research Article");
-  const [category, setCategory] = useState("Computer Science & AI");
+  const [manuscriptType, setManuscriptType] = useState(manuscriptTypes[0] || "Research Article");
+  const [category, setCategory] = useState(categories[0] || "General Science");
   const [abstract, setAbstract] = useState("");
-  const [keywords, setKeywords] = useState("");
+
+  // Keywords state with Enter key & badge management
+  const [keywordsList, setKeywordsList] = useState<string[]>([]);
+  const [keywordInput, setKeywordInput] = useState("");
 
   const [coAuthors, setCoAuthors] = useState<CoAuthor[]>([]);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
@@ -55,6 +78,33 @@ export function ManuscriptSubmissionForm() {
     const updated = [...coAuthors];
     updated[index][field] = value;
     setCoAuthors(updated);
+  };
+
+  // Keyword handling (Enter key, comma, badge chips)
+  const addKeyword = (valueToAdd?: string) => {
+    const raw = valueToAdd !== undefined ? valueToAdd : keywordInput;
+    const trimmed = raw.trim().replace(/^,+|,+$/g, "");
+    if (!trimmed) return;
+    const parts = trimmed.split(",").map((k) => k.trim()).filter(Boolean);
+    const updated = [...keywordsList];
+    for (const p of parts) {
+      if (!updated.some((existing) => existing.toLowerCase() === p.toLowerCase())) {
+        updated.push(p);
+      }
+    }
+    setKeywordsList(updated);
+    setKeywordInput("");
+  };
+
+  const handleKeywordKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      addKeyword();
+    }
+  };
+
+  const removeKeyword = (indexToRemove: number) => {
+    setKeywordsList(keywordsList.filter((_, idx) => idx !== indexToRemove));
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -90,6 +140,26 @@ export function ManuscriptSubmissionForm() {
       return;
     }
 
+    // Collect final keywords (including any untyped keyword remaining in input)
+    const finalKeywords = [...keywordsList];
+    if (keywordInput.trim()) {
+      const parts = keywordInput.trim().split(",").map((k) => k.trim()).filter(Boolean);
+      for (const p of parts) {
+        if (!finalKeywords.some((existing) => existing.toLowerCase() === p.toLowerCase())) {
+          finalKeywords.push(p);
+        }
+      }
+      setKeywordsList(finalKeywords);
+      setKeywordInput("");
+    }
+
+    if (finalKeywords.length === 0) {
+      const msg = "Please provide at least one keyword (type keyword and press Enter).";
+      setErrorMessage(msg);
+      toast.error(msg);
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -106,7 +176,7 @@ export function ManuscriptSubmissionForm() {
       formData.append("manuscriptType", manuscriptType);
       formData.append("category", category);
       formData.append("abstract", abstract);
-      formData.append("keywords", keywords);
+      formData.append("keywords", JSON.stringify(finalKeywords));
 
       const validCoAuthors = coAuthors.filter((ca) => ca.name.trim() !== "");
       formData.append("coAuthors", JSON.stringify(validCoAuthors));
@@ -121,11 +191,12 @@ export function ManuscriptSubmissionForm() {
         body: formData,
       });
 
-      const data = await res.json();
-
       if (!res.ok) {
-        throw new Error(data.error || "Submission failed. Please check inputs.");
+        const errorMsg = await getApiResponseError(res, "Submission failed. Please check inputs.");
+        throw new Error(errorMsg);
       }
+
+      const data = await res.json();
 
       setSubmissionSuccess({
         submissionId: data.submissionId,
@@ -133,7 +204,7 @@ export function ManuscriptSubmissionForm() {
       });
       toast.success(`Manuscript submitted successfully! Ref: ${data.submissionId}`);
     } catch (err: any) {
-      const msg = err.message || "Failed to submit manuscript.";
+      const msg = getErrorMessage(err, "Failed to submit manuscript.");
       setErrorMessage(msg);
       toast.error(msg);
     } finally {
@@ -174,7 +245,8 @@ export function ManuscriptSubmissionForm() {
               setPdfFile(null);
               setTitle("");
               setAbstract("");
-              setKeywords("");
+              setKeywordsList([]);
+              setKeywordInput("");
               setCoAuthors([]);
             }}
           >
@@ -299,37 +371,26 @@ export function ManuscriptSubmissionForm() {
               <label className="block text-xs font-semibold text-academic-text mb-1.5">
                 Manuscript Type *
               </label>
-              <select
-                className="w-full h-10 rounded-md border border-academic-border bg-white px-3 py-2 text-sm text-academic-text focus:outline-none focus:ring-2 focus:ring-royal"
+              <SearchableSelect
                 value={manuscriptType}
-                onChange={(e) => setManuscriptType(e.target.value)}
-              >
-                <option value="Research Article">Research Article</option>
-                <option value="Review Article">Review Article</option>
-                <option value="Short Communication">Short Communication</option>
-                <option value="Case Study">Case Study</option>
-                <option value="Methodology Paper">Methodology Paper</option>
-              </select>
+                onChange={setManuscriptType}
+                options={manuscriptTypes}
+                placeholder="Select manuscript type..."
+                searchPlaceholder="Search or type manuscript type..."
+              />
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-academic-text mb-1.5">
                 Research Category *
               </label>
-              <select
-                className="w-full h-10 rounded-md border border-academic-border bg-white px-3 py-2 text-sm text-academic-text focus:outline-none focus:ring-2 focus:ring-royal"
+              <SearchableSelect
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              >
-                <option value="Computer Science & AI">Computer Science & AI</option>
-                <option value="Electrical Engineering">Electrical Engineering</option>
-                <option value="Materials Science">Materials Science</option>
-                <option value="Biomedical Sciences">Biomedical Sciences</option>
-                <option value="Environmental Sciences">Environmental Sciences</option>
-                <option value="Applied Physics">Applied Physics</option>
-                <option value="Robotics & Automation">Robotics & Automation</option>
-                <option value="General Science">General Science</option>
-              </select>
+                onChange={setCategory}
+                options={categories}
+                placeholder="Select research category..."
+                searchPlaceholder="Search or type research category..."
+              />
             </div>
           </div>
 
@@ -350,15 +411,58 @@ export function ManuscriptSubmissionForm() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-academic-text mb-1.5">
-              Keywords (Comma separated) *
-            </label>
-            <Input
-              required
-              placeholder="e.g. Machine Learning, Deep Neural Networks, Image Classification"
-              value={keywords}
-              onChange={(e) => setKeywords(e.target.value)}
-            />
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-academic-text">
+                Keywords *
+              </label>
+              <span className="text-[11px] text-academic-muted">
+                Type keyword &amp; press <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-[10px] font-mono text-navy">Enter</kbd> or comma
+              </span>
+            </div>
+
+            {/* Keyword tag badges */}
+            {keywordsList.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2.5 p-2.5 bg-academic-bg border border-academic-border rounded-lg">
+                {keywordsList.map((kw, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-white border border-royal/30 text-royal text-xs font-medium shadow-xs"
+                  >
+                    <Tag className="w-3 h-3 text-royal/60" />
+                    <span>{kw}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeKeyword(idx)}
+                      className="text-academic-muted hover:text-rose-600 transition-colors ml-0.5 cursor-pointer"
+                      title="Remove keyword"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <Input
+                placeholder="e.g. Deep Learning, Explainable AI (press Enter to add)"
+                value={keywordInput}
+                onChange={(e) => setKeywordInput(e.target.value)}
+                onKeyDown={handleKeywordKeyDown}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => addKeyword()}
+                className="shrink-0 text-xs font-semibold border-academic-border hover:bg-royal hover:text-white transition-colors"
+              >
+                + Add
+              </Button>
+            </div>
+            <p className="text-[11px] text-academic-muted mt-1">
+              Add at least one keyword. You can press Enter or type commas to quickly add multiple terms.
+            </p>
           </div>
         </div>
       </div>

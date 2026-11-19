@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { PaymentStatusBadge } from "@/components/admin/PaymentStatusBadge";
-import { formatDate } from "@/lib/utils";
+import { formatDate, getApiResponseError, getErrorMessage } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface ManuscriptDetailClientProps {
@@ -61,10 +61,12 @@ export function ManuscriptDetailClient({
         }),
       });
 
-      const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to update manuscript");
+        const errorMsg = await getApiResponseError(res, "Failed to update manuscript");
+        throw new Error(errorMsg);
       }
+
+      const data = await res.json();
 
       if (data.publishedArticle) {
         setLinkedArticle(data.publishedArticle);
@@ -80,15 +82,20 @@ export function ManuscriptDetailClient({
       router.refresh();
       setTimeout(() => setSuccessMessage(null), 4000);
     } catch (err: any) {
-      setErrorMessage(err.message || "Failed to save updates.");
-      toast.error(err.message || "Failed to save updates.");
+      const errMsg = getErrorMessage(err, "Failed to save updates.");
+      setErrorMessage(errMsg);
+      toast.error(errMsg);
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!window.confirm("Are you sure you want to permanently delete this manuscript submission and its PDF?")) {
+    if (
+      !window.confirm(
+        `Are you sure you want to permanently delete submission ${manuscript.submissionId}? This will remove all author details, files, and any linked published article from the public archives.`
+      )
+    ) {
       return;
     }
 
@@ -99,15 +106,15 @@ export function ManuscriptDetailClient({
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to delete");
+        const errorMsg = await getApiResponseError(res, "Failed to delete manuscript");
+        throw new Error(errorMsg);
       }
 
       toast.success(`Manuscript ${manuscript.submissionId} deleted successfully!`);
       router.push("/admin/submissions");
       router.refresh();
     } catch (err: any) {
-      toast.error("Failed to delete manuscript: " + err.message);
+      toast.error(getErrorMessage(err, "Failed to delete manuscript"));
       setDeleting(false);
     }
   };

@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Sliders,
   Save,
@@ -19,18 +19,31 @@ import {
   Trash2,
   Image as ImageIcon,
   BookOpen,
+  Layers,
+  FileText,
+  Plus,
+  X,
+  RotateCcw,
+  Tag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { getApiResponseError, getErrorMessage } from "@/lib/utils";
+import { DEFAULT_CATEGORIES, DEFAULT_MANUSCRIPT_TYPES } from "@/lib/constants";
 
 interface JournalSettingsFormProps {
   initialSettings: any;
+  initialTab?: string;
 }
 
-export function JournalSettingsForm({ initialSettings }: JournalSettingsFormProps) {
+export function JournalSettingsForm({
+  initialSettings,
+  initialTab = "general",
+}: JournalSettingsFormProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   // General settings
   const [journalName, setJournalName] = useState(initialSettings.journalName || "");
@@ -66,6 +79,124 @@ export function JournalSettingsForm({ initialSettings }: JournalSettingsFormProp
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Active Tab State (synchronized with URL query & hash)
+  const [activeTab, setActiveTab] = useState<string>(initialTab);
+
+  useEffect(() => {
+    // 1. Sync from URL search params (?tab=...)
+    const tabParam = searchParams.get("tab");
+    if (tabParam && ["general", "taxonomy", "mailgun", "branding", "contact"].includes(tabParam)) {
+      setActiveTab(tabParam);
+      return;
+    }
+
+    // 2. Sync from URL hash (#...)
+    if (typeof window !== "undefined") {
+      const hash = window.location.hash.replace("#", "");
+      if (hash && ["general", "taxonomy", "mailgun", "branding", "contact"].includes(hash)) {
+        setActiveTab(hash);
+      }
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const handleHashChange = () => {
+        const hash = window.location.hash.replace("#", "");
+        if (hash && ["general", "taxonomy", "mailgun", "branding", "contact"].includes(hash)) {
+          setActiveTab(hash);
+        }
+      };
+
+      window.addEventListener("hashchange", handleHashChange);
+      return () => window.removeEventListener("hashchange", handleHashChange);
+    }
+  }, []);
+
+  const switchTab = (tabId: string) => {
+    setActiveTab(tabId);
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", `/admin/settings?tab=${tabId}#${tabId}`);
+    }
+  };
+
+  // Taxonomy Management: Categories & Manuscript Types
+  const [categories, setCategories] = useState<string[]>(
+    initialSettings.categories && initialSettings.categories.length > 0
+      ? initialSettings.categories
+      : DEFAULT_CATEGORIES
+  );
+  const [newCategory, setNewCategory] = useState("");
+
+  const [manuscriptTypes, setManuscriptTypes] = useState<string[]>(
+    initialSettings.manuscriptTypes && initialSettings.manuscriptTypes.length > 0
+      ? initialSettings.manuscriptTypes
+      : DEFAULT_MANUSCRIPT_TYPES
+  );
+  const [newManuscriptType, setNewManuscriptType] = useState("");
+
+  const handleAddCategory = () => {
+    const trimmed = newCategory.trim();
+    if (!trimmed) return;
+    if (categories.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
+      toast.error(`Category "${trimmed}" already exists.`);
+      return;
+    }
+    setCategories([...categories, trimmed]);
+    setNewCategory("");
+  };
+
+  const handleCategoryKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleAddCategory();
+    }
+  };
+
+  const handleRemoveCategory = (catToRemove: string) => {
+    if (categories.length <= 1) {
+      toast.error("At least one research category is required.");
+      return;
+    }
+    setCategories(categories.filter((c) => c !== catToRemove));
+  };
+
+  const handleResetCategories = () => {
+    setCategories(DEFAULT_CATEGORIES);
+    toast.info("Research categories reset to defaults.");
+  };
+
+  const handleAddManuscriptType = () => {
+    const trimmed = newManuscriptType.trim();
+    if (!trimmed) return;
+    if (manuscriptTypes.some((t) => t.toLowerCase() === trimmed.toLowerCase())) {
+      toast.error(`Manuscript type "${trimmed}" already exists.`);
+      return;
+    }
+    setManuscriptTypes([...manuscriptTypes, trimmed]);
+    setNewManuscriptType("");
+  };
+
+  const handleManuscriptTypeKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleAddManuscriptType();
+    }
+  };
+
+  const handleRemoveManuscriptType = (typeToRemove: string) => {
+    if (manuscriptTypes.length <= 1) {
+      toast.error("At least one manuscript type is required.");
+      return;
+    }
+    setManuscriptTypes(manuscriptTypes.filter((t) => t !== typeToRemove));
+  };
+
+  const handleResetManuscriptTypes = () => {
+    setManuscriptTypes(DEFAULT_MANUSCRIPT_TYPES);
+    toast.info("Manuscript types reset to defaults.");
+  };
+
   const handleSendTestEmail = async () => {
     if (!testEmail || !testEmail.includes("@")) {
       setTestEmailResult({
@@ -85,11 +216,12 @@ export function JournalSettingsForm({ initialSettings }: JournalSettingsFormProp
         body: JSON.stringify({ recipient: testEmail.trim() }),
       });
 
-      const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to send test email");
+        const errorMsg = await getApiResponseError(res, "Failed to send test email");
+        throw new Error(errorMsg);
       }
 
+      const data = await res.json();
       const msg = data.message || `Test email successfully sent to ${testEmail}!`;
       setTestEmailResult({
         success: true,
@@ -97,7 +229,7 @@ export function JournalSettingsForm({ initialSettings }: JournalSettingsFormProp
       });
       toast.success(msg);
     } catch (err: any) {
-      const errMsg = err.message || "Failed to deliver test email.";
+      const errMsg = getErrorMessage(err, "Failed to deliver test email.");
       setTestEmailResult({
         success: false,
         message: errMsg,
@@ -165,6 +297,13 @@ export function JournalSettingsForm({ initialSettings }: JournalSettingsFormProp
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!journalName.trim()) {
+      setActiveTab("general");
+      setError("Journal Full Name is required.");
+      toast.error("Journal Full Name is required.");
+      return;
+    }
+
     setSaving(true);
     setSuccess(null);
     setError(null);
@@ -186,6 +325,8 @@ export function JournalSettingsForm({ initialSettings }: JournalSettingsFormProp
           secondaryColor,
           description,
           logo: logo.trim(),
+          categories,
+          manuscriptTypes,
           mailgunApiKey: mailgunApiKey.trim(),
           mailgunDomain: mailgunDomain.trim(),
           mailgunUrl: mailgunUrl.trim(),
@@ -193,22 +334,52 @@ export function JournalSettingsForm({ initialSettings }: JournalSettingsFormProp
         }),
       });
 
-      const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to update journal settings");
+        const errorMsg = await getApiResponseError(res, "Failed to update journal settings");
+        throw new Error(errorMsg);
       }
+
+      await res.json();
 
       setSuccess("Journal & Mailgun settings updated successfully! Changes are live.");
       toast.success("Journal & Mailgun settings updated successfully!");
       router.refresh();
       setTimeout(() => setSuccess(null), 3500);
     } catch (err: any) {
-      setError(err.message || "An error occurred.");
-      toast.error(err.message || "Failed to update settings.");
+      const errMsg = getErrorMessage(err, "Failed to update settings.");
+      setError(errMsg);
+      toast.error(errMsg);
     } finally {
       setSaving(false);
     }
   };
+
+  const renderSaveFooter = () => (
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-5 border-t border-gray-100 mt-6">
+      <p className="text-xs text-academic-muted">
+        Save changes to update journal configurations across the platform.
+      </p>
+      <Button
+        type="submit"
+        variant="teal"
+        size="sm"
+        disabled={saving}
+        className="space-x-1.5 shadow-sm font-semibold cursor-pointer shrink-0 self-end sm:self-auto"
+      >
+        {saving ? (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>Saving...</span>
+          </>
+        ) : (
+          <>
+            <Save className="w-4 h-4" />
+            <span>Save Changes</span>
+          </>
+        )}
+      </Button>
+    </div>
+  );
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 max-w-4xl mx-auto">
@@ -258,8 +429,54 @@ export function JournalSettingsForm({ initialSettings }: JournalSettingsFormProp
         </div>
       )}
 
-      {/* 1. MAILGUN EMAIL CONFIGURATION CARD */}
-      <div className="bg-white rounded-xl border border-academic-border p-6 shadow-sm space-y-5">
+      {/* Tab Navigation */}
+      <div className="bg-academic-bg border border-academic-border p-1.5 rounded-xl flex flex-wrap gap-1.5 shadow-2xs">
+        {[
+          { id: "general", label: "General Identity", icon: BookOpen },
+          {
+            id: "taxonomy",
+            label: "Categories & Types",
+            icon: Tag,
+            count: categories.length + manuscriptTypes.length,
+          },
+          { id: "mailgun", label: "Email Platform", icon: Mail },
+          { id: "branding", label: "Branding & Logo", icon: ImageIcon },
+          { id: "contact", label: "Contact & Postal", icon: Globe },
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => switchTab(tab.id)}
+              className={`flex items-center space-x-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                isActive
+                  ? "bg-white text-navy shadow-xs border border-academic-border font-bold"
+                  : "text-academic-muted hover:text-navy hover:bg-white/60"
+              }`}
+            >
+              <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-teal" : "text-academic-muted"}`} />
+              <span>{tab.label}</span>
+              {typeof tab.count === "number" && (
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ml-1 ${
+                    isActive
+                      ? "bg-teal/10 text-teal-dark"
+                      : "bg-gray-200 text-academic-muted"
+                  }`}
+                >
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* MAILGUN EMAIL CONFIGURATION TAB */}
+      {activeTab === "mailgun" && (
+        <div id="mailgun" className="bg-white rounded-xl border border-academic-border p-6 shadow-sm space-y-5 scroll-mt-20">
         <div className="flex items-center justify-between pb-3 border-b border-gray-100">
           <div className="flex items-center space-x-2.5">
             <div className="w-8 h-8 rounded-lg bg-royal/10 text-royal flex items-center justify-center font-bold">
@@ -418,13 +635,27 @@ export function JournalSettingsForm({ initialSettings }: JournalSettingsFormProp
             )}
           </div>
         </div>
-      </div>
 
-      {/* 2. GENERAL JOURNAL METADATA CARD */}
-      <div className="bg-white rounded-xl border border-academic-border p-6 shadow-sm space-y-5">
-        <h3 className="font-serif font-bold text-lg text-navy pb-2 border-b border-gray-100">
-          General Journal Information
-        </h3>
+        {renderSaveFooter()}
+      </div>
+      )}
+
+      {/* GENERAL JOURNAL METADATA TAB */}
+      {activeTab === "general" && (
+        <div id="general" className="bg-white rounded-xl border border-academic-border p-6 shadow-sm space-y-5 scroll-mt-20">
+          <div className="pb-3 border-b border-gray-100 flex items-center space-x-2.5">
+            <div className="w-8 h-8 rounded-lg bg-navy/10 text-navy flex items-center justify-center font-bold">
+              <BookOpen className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-serif font-bold text-lg text-navy">
+                General Journal Information
+              </h3>
+              <p className="text-xs text-academic-muted">
+                Official journal name, ISSN identification, publisher identity, and disciplinary scope.
+              </p>
+            </div>
+          </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
           <div>
@@ -495,63 +726,86 @@ export function JournalSettingsForm({ initialSettings }: JournalSettingsFormProp
             />
           </div>
         </div>
+
+        {renderSaveFooter()}
       </div>
+      )}
 
-      {/* 3. CONTACT & EDITORIAL ADDRESS CARD */}
-      <div className="bg-white rounded-xl border border-academic-border p-6 shadow-sm space-y-5">
-        <h3 className="font-serif font-bold text-lg text-navy pb-2 border-b border-gray-100">
-          Contact & Postal Details
-        </h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-          <div>
-            <label className="block font-semibold text-academic-text mb-1">
-              Official Journal Email
-            </label>
-            <Input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="editorial@journal.ac.org"
-            />
+      {/* CONTACT & EDITORIAL ADDRESS TAB */}
+      {activeTab === "contact" && (
+        <div id="contact" className="bg-white rounded-xl border border-academic-border p-6 shadow-sm space-y-5 scroll-mt-20">
+          <div className="pb-3 border-b border-gray-100 flex items-center space-x-2.5">
+            <div className="w-8 h-8 rounded-lg bg-royal/10 text-royal flex items-center justify-center font-bold">
+              <Globe className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-serif font-bold text-lg text-navy">
+                Contact &amp; Postal Details
+              </h3>
+              <p className="text-xs text-academic-muted">
+                Official public contact channels and editorial office location.
+              </p>
+            </div>
           </div>
 
-          <div>
-            <label className="block font-semibold text-academic-text mb-1">
-              Phone Number
-            </label>
-            <Input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+1 (555) 234-5678"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <div>
+              <label className="block font-semibold text-academic-text mb-1">
+                Official Journal Email
+              </label>
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="editorial@journal.ac.org"
+              />
+            </div>
+
+            <div>
+              <label className="block font-semibold text-academic-text mb-1">
+                Phone Number
+              </label>
+              <Input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+1 (555) 234-5678"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block font-semibold text-academic-text mb-1">
+                Physical / Postal Address
+              </label>
+              <Input
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="100 Academic Way, Cambridge, MA 02138, USA"
+              />
+            </div>
           </div>
 
-          <div className="md:col-span-2">
-            <label className="block font-semibold text-academic-text mb-1">
-              Physical / Postal Address
-            </label>
-            <Input
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="100 Academic Way, Cambridge, MA 02138, USA"
-            />
-          </div>
+          {renderSaveFooter()}
         </div>
-      </div>
+      )}
 
-      {/* 4. VISUAL IDENTITY & PALETTE */}
-      <div className="bg-white rounded-xl border border-academic-border p-6 shadow-sm space-y-6">
-        <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-          <div>
-            <h3 className="font-serif font-bold text-lg text-navy">
-              Visual Identity, Official Logo & Palette
-            </h3>
-            <p className="text-xs text-academic-muted">
-              Configure your journal emblem, header logo, and brand color theme.
-            </p>
+      {/* VISUAL IDENTITY & BRANDING TAB */}
+      {activeTab === "branding" && (
+        <div id="branding" className="bg-white rounded-xl border border-academic-border p-6 shadow-sm space-y-6 scroll-mt-20">
+          <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+            <div className="flex items-center space-x-2.5">
+              <div className="w-8 h-8 rounded-lg bg-royal/10 text-royal flex items-center justify-center font-bold">
+                <ImageIcon className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-serif font-bold text-lg text-navy">
+                  Visual Identity, Official Logo & Palette
+                </h3>
+                <p className="text-xs text-academic-muted">
+                  Configure your journal emblem, header logo, and brand color theme.
+                </p>
+              </div>
+            </div>
           </div>
-        </div>
 
         {/* LOGO UPLOAD & LIVE DUAL PREVIEW */}
         <div className="space-y-4">
@@ -720,7 +974,168 @@ export function JournalSettingsForm({ initialSettings }: JournalSettingsFormProp
             </div>
           </div>
         </div>
+
+        {renderSaveFooter()}
       </div>
+      )}
+
+      {/* TAXONOMY TAB */}
+      {activeTab === "taxonomy" && (
+        <div id="taxonomy" className="bg-white rounded-xl border border-academic-border p-6 shadow-sm space-y-6 scroll-mt-20">
+        <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-8 h-8 rounded-lg bg-teal/10 text-teal flex items-center justify-center font-bold">
+              <Layers className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-serif font-bold text-lg text-navy">
+                Taxonomy: Research Categories &amp; Manuscript Types
+              </h3>
+              <p className="text-xs text-academic-muted">
+                Manage the research categories and manuscript article types available to authors during submission and editors during publication.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Section A: Research Categories */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="block text-xs font-bold text-navy uppercase tracking-wider">
+                Research Categories ({categories.length})
+              </label>
+              <p className="text-[11px] text-academic-muted">
+                These categories appear in manuscript submission dropdowns and article category filters.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleResetCategories}
+              className="text-xs text-academic-muted hover:text-navy space-x-1 h-7 px-2 cursor-pointer"
+              title="Reset to academic defaults"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Reset Defaults</span>
+            </Button>
+          </div>
+
+          {/* Current Categories Badges */}
+          <div className="flex flex-wrap gap-2 p-3 bg-academic-bg border border-academic-border rounded-lg min-h-[50px] items-center">
+            {categories.map((cat) => (
+              <span
+                key={cat}
+                className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-md bg-white border border-teal/30 text-teal-dark text-xs font-medium shadow-xs"
+              >
+                <span>{cat}</span>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveCategory(cat)}
+                  className="text-academic-muted hover:text-rose-600 transition-colors ml-1 cursor-pointer"
+                  title={`Remove "${cat}"`}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </span>
+            ))}
+          </div>
+
+          {/* Add Category Input */}
+          <div className="flex gap-2">
+            <Input
+              placeholder="Enter new research category (e.g. Artificial Intelligence, Renewable Energy)..."
+              value={newCategory}
+              onChange={(e) => setNewCategory(e.target.value)}
+              onKeyDown={handleCategoryKeyDown}
+              className="text-xs"
+            />
+            <Button
+              type="button"
+              variant="teal"
+              size="sm"
+              onClick={handleAddCategory}
+              className="shrink-0 space-x-1 text-xs font-semibold cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Category</span>
+            </Button>
+          </div>
+        </div>
+
+        <div className="border-t border-gray-100 my-4" />
+
+        {/* Section B: Manuscript Types */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="block text-xs font-bold text-navy uppercase tracking-wider">
+                Manuscript Types ({manuscriptTypes.length})
+              </label>
+              <p className="text-[11px] text-academic-muted">
+                Scholarly manuscript formats accepted by the editorial desk (e.g. Research Article, Review Article).
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleResetManuscriptTypes}
+              className="text-xs text-academic-muted hover:text-navy space-x-1 h-7 px-2 cursor-pointer"
+              title="Reset to academic defaults"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Reset Defaults</span>
+            </Button>
+          </div>
+
+          {/* Current Manuscript Types Badges */}
+          <div className="flex flex-wrap gap-2 p-3 bg-academic-bg border border-academic-border rounded-lg min-h-[50px] items-center">
+            {manuscriptTypes.map((type) => (
+              <span
+                key={type}
+                className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-md bg-white border border-royal/30 text-royal text-xs font-medium shadow-xs"
+              >
+                <FileText className="w-3 h-3 text-royal/60" />
+                <span>{type}</span>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveManuscriptType(type)}
+                  className="text-academic-muted hover:text-rose-600 transition-colors ml-1 cursor-pointer"
+                  title={`Remove "${type}"`}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </span>
+            ))}
+          </div>
+
+          {/* Add Manuscript Type Input */}
+          <div className="flex gap-2">
+            <Input
+              placeholder="Enter new manuscript type (e.g. Commentary, Perspective, Protocol)..."
+              value={newManuscriptType}
+              onChange={(e) => setNewManuscriptType(e.target.value)}
+              onKeyDown={handleManuscriptTypeKeyDown}
+              className="text-xs"
+            />
+            <Button
+              type="button"
+              variant="royal"
+              size="sm"
+              onClick={handleAddManuscriptType}
+              className="shrink-0 space-x-1 text-xs font-semibold cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Type</span>
+            </Button>
+          </div>
+        </div>
+
+        {renderSaveFooter()}
+      </div>
+      )}
     </form>
   );
 }

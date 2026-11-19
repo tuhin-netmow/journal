@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { getApiResponseError, getErrorMessage } from "@/lib/utils";
 
 interface EditorialBoardManagerProps {
   initialMembers: any[];
@@ -81,9 +82,9 @@ export function EditorialBoardManager({ initialMembers }: EditorialBoardManagerP
         body: JSON.stringify(body),
       });
 
-      const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to save editorial member");
+        const errorMsg = await getApiResponseError(res, "Failed to save editorial member");
+        throw new Error(errorMsg);
       }
 
       setShowModal(false);
@@ -95,8 +96,9 @@ export function EditorialBoardManager({ initialMembers }: EditorialBoardManagerP
       const refreshData = await refreshRes.json();
       if (refreshData.members) setMembers(refreshData.members);
     } catch (err: any) {
-      setError(err.message || "Failed to save member.");
-      toast.error(err.message || "Failed to save member.");
+      const errMsg = getErrorMessage(err, "Failed to save member.");
+      setError(errMsg);
+      toast.error(errMsg);
     } finally {
       setLoading(false);
     }
@@ -110,16 +112,16 @@ export function EditorialBoardManager({ initialMembers }: EditorialBoardManagerP
         method: "DELETE",
       });
 
-      const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to remove member");
+        const errorMsg = await getApiResponseError(res, "Failed to remove member");
+        throw new Error(errorMsg);
       }
 
       setMembers(members.filter((m) => m._id.toString() !== id));
       toast.success(`Removed ${memberName} from editorial board.`);
       router.refresh();
     } catch (err: any) {
-      toast.error("Error: " + err.message);
+      toast.error(getErrorMessage(err, "Failed to remove member"));
     }
   };
 

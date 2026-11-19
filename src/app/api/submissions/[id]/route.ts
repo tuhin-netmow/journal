@@ -254,7 +254,39 @@ export async function DELETE(
       return NextResponse.json({ error: "Manuscript not found" }, { status: 404 });
     }
 
-    // Delete associated private file
+    // 1. Cascade delete any linked Articles (published or draft in archives)
+    const escapedTitle = submission.title?.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const linkedArticles = await Article.find({
+      $or: [
+        { sourceManuscript: id },
+        ...(escapedTitle ? [{ title: { $regex: new RegExp(`^${escapedTitle}$`, "i") } }] : []),
+      ],
+    });
+
+    for (const article of linkedArticles) {
+      if (
+        article.pdfFile?.storageKey &&
+        article.pdfFile.storageKey !== submission.pdfFile?.storageKey
+      ) {
+        try {
+          await deleteFile(article.pdfFile.storageKey);
+        } catch (fileErr) {
+          console.warn("Could not delete article physical file:", fileErr);
+        }
+      }
+
+      await Article.findByIdAndDelete(article._id);
+
+      if (article.slug) {
+        try {
+          revalidatePath(`/articles/${article.slug}`);
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    // 2. Delete associated private manuscript file
     if (submission.pdfFile?.storageKey) {
       try {
         await deleteFile(submission.pdfFile.storageKey);
@@ -263,11 +295,26 @@ export async function DELETE(
       }
     }
 
+    // 3. Delete manuscript document
     await Manuscript.findByIdAndDelete(id);
+
+    // 4. Invalidate all public and admin caches
+    try {
+      revalidatePath("/");
+      revalidatePath("/archives");
+      revalidatePath("/current-issue");
+      revalidatePath("/admin/submissions");
+      revalidatePath("/admin/articles");
+    } catch (revalErr) {
+      console.warn("Cache revalidation notice:", revalErr);
+    }
 
     return NextResponse.json({
       success: true,
-      message: "Manuscript submission deleted successfully",
+      message:
+        linkedArticles.length > 0
+          ? `Manuscript and ${linkedArticles.length} associated published article(s) removed successfully.`
+          : "Manuscript submission deleted successfully",
     });
   } catch (error: any) {
     console.error("DELETE /api/submissions/[id] error:", error);

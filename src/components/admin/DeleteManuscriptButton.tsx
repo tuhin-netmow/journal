@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { getApiResponseError, getErrorMessage } from "@/lib/utils";
 
 interface DeleteManuscriptButtonProps {
   id: string;
@@ -21,7 +22,7 @@ export function DeleteManuscriptButton({ id, submissionId }: DeleteManuscriptBut
 
     if (
       !window.confirm(
-        `Are you sure you want to permanently delete submission ${submissionId}? This will remove all author details and the stored PDF.`
+        `Are you sure you want to permanently delete submission ${submissionId}? This will remove all author details, files, and any linked published article from the public archives.`
       )
     ) {
       return;
@@ -34,14 +35,14 @@ export function DeleteManuscriptButton({ id, submissionId }: DeleteManuscriptBut
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to delete submission");
+        const errorMsg = await getApiResponseError(res, "Failed to delete submission");
+        throw new Error(errorMsg);
       }
 
       toast.success(`Manuscript ${submissionId} deleted successfully!`);
       router.refresh();
     } catch (err: any) {
-      toast.error(err.message || "Failed to delete manuscript");
+      toast.error(getErrorMessage(err, "Failed to delete manuscript"));
     } finally {
       setDeleting(false);
     }

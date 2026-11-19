@@ -126,6 +126,8 @@ export interface IJournalSettings {
   logo?: string;
   primaryColor?: string;
   secondaryColor?: string;
+  categories?: string[];
+  manuscriptTypes?: string[];
   paymentFee?: number;
   paymentCurrency?: string;
   paymentProvider?: string;

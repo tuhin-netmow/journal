@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { getApiResponseError, getErrorMessage } from "@/lib/utils";
 
 interface VolumeManagerProps {
   initialVolumes: any[];
@@ -66,9 +67,9 @@ export function VolumeManager({ initialVolumes }: VolumeManagerProps) {
         body: JSON.stringify(body),
       });
 
-      const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to save volume");
+        const errorMsg = await getApiResponseError(res, "Failed to save volume");
+        throw new Error(errorMsg);
       }
 
       setShowModal(false);
@@ -79,8 +80,9 @@ export function VolumeManager({ initialVolumes }: VolumeManagerProps) {
       const refreshData = await refreshRes.json();
       if (refreshData.volumes) setVolumes(refreshData.volumes);
     } catch (err: any) {
-      setError(err.message || "Failed to save volume.");
-      toast.error(err.message || "Failed to save volume.");
+      const errMsg = getErrorMessage(err, "Failed to save volume.");
+      setError(errMsg);
+      toast.error(errMsg);
     } finally {
       setLoading(false);
     }
@@ -94,16 +96,16 @@ export function VolumeManager({ initialVolumes }: VolumeManagerProps) {
         method: "DELETE",
       });
 
-      const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to delete volume");
+        const errorMsg = await getApiResponseError(res, "Failed to delete volume");
+        throw new Error(errorMsg);
       }
 
       setVolumes(volumes.filter((v) => v._id.toString() !== id));
       toast.success(`Volume ${volNum} deleted successfully!`);
       router.refresh();
     } catch (err: any) {
-      toast.error("Error: " + err.message);
+      toast.error(getErrorMessage(err, "Failed to delete volume"));
     }
   };
 

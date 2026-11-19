@@ -252,11 +252,26 @@ export async function DELETE(
 
     await Article.findByIdAndDelete(id);
 
+    // If linked to a manuscript, revert manuscript status back to 'accepted'
+    if (article.sourceManuscript) {
+      try {
+        await Manuscript.findByIdAndUpdate(article.sourceManuscript, {
+          status: "accepted",
+        });
+      } catch (mErr) {
+        console.warn("Could not revert manuscript status:", mErr);
+      }
+    }
+
     try {
       revalidatePath("/");
       revalidatePath("/archives");
       revalidatePath("/current-issue");
       revalidatePath("/admin/articles");
+      revalidatePath("/admin/submissions");
+      if (article.slug) {
+        revalidatePath(`/articles/${article.slug}`);
+      }
     } catch {
       // Revalidation in background
     }

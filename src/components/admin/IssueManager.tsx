@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "@/components/admin/StatusBadge";
-import { formatDate } from "@/lib/utils";
+import { formatDate, getApiResponseError, getErrorMessage } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface IssueManagerProps {
@@ -88,9 +88,9 @@ export function IssueManager({ initialIssues, volumes, selectedVolumeId = "all" 
         body: JSON.stringify(body),
       });
 
-      const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to save issue");
+        const errorMsg = await getApiResponseError(res, "Failed to save issue");
+        throw new Error(errorMsg);
       }
 
       setShowModal(false);
@@ -102,8 +102,9 @@ export function IssueManager({ initialIssues, volumes, selectedVolumeId = "all" 
       const refreshData = await refreshRes.json();
       if (refreshData.issues) setIssues(refreshData.issues);
     } catch (err: any) {
-      setError(err.message || "Failed to save issue.");
-      toast.error(err.message || "Failed to save issue.");
+      const errMsg = getErrorMessage(err, "Failed to save issue.");
+      setError(errMsg);
+      toast.error(errMsg);
     } finally {
       setLoading(false);
     }
@@ -122,8 +123,8 @@ export function IssueManager({ initialIssues, volumes, selectedVolumeId = "all" 
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to toggle status");
+        const errorMsg = await getApiResponseError(res, "Failed to toggle status");
+        throw new Error(errorMsg);
       }
 
       setIssues(
@@ -134,7 +135,7 @@ export function IssueManager({ initialIssues, volumes, selectedVolumeId = "all" 
       toast.success(`Issue status changed to ${newStatus}.`);
       router.refresh();
     } catch (err: any) {
-      toast.error("Error: " + err.message);
+      toast.error(getErrorMessage(err, "Failed to toggle status"));
     }
   };
 
@@ -146,16 +147,16 @@ export function IssueManager({ initialIssues, volumes, selectedVolumeId = "all" 
         method: "DELETE",
       });
 
-      const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to delete issue");
+        const errorMsg = await getApiResponseError(res, "Failed to delete issue");
+        throw new Error(errorMsg);
       }
 
       setIssues(issues.filter((i) => i._id.toString() !== id));
       toast.success(`Deleted ${titleStr} successfully!`);
       router.refresh();
     } catch (err: any) {
-      toast.error("Error: " + err.message);
+      toast.error(getErrorMessage(err, "Failed to delete issue"));
     }
   };
 

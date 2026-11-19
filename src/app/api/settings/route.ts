@@ -3,6 +3,7 @@ import connectToDatabase from "@/lib/mongodb";
 import JournalSettings from "@/models/JournalSettings";
 import { getAdminSession } from "@/lib/auth";
 import { journalSettingsSchema } from "@/lib/validations/settings";
+import { DEFAULT_CATEGORIES, DEFAULT_MANUSCRIPT_TYPES } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,13 @@ export async function GET() {
     if (!settings) {
       const created = await JournalSettings.create({});
       settings = created.toObject();
+    }
+
+    if (!settings.categories || settings.categories.length === 0) {
+      settings.categories = DEFAULT_CATEGORIES;
+    }
+    if (!settings.manuscriptTypes || settings.manuscriptTypes.length === 0) {
+      settings.manuscriptTypes = DEFAULT_MANUSCRIPT_TYPES;
     }
 
     return NextResponse.json({ success: true, settings });

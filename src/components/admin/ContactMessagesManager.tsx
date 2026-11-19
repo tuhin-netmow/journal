@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Mail, Trash2, CheckCircle2, Clock, Eye, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatDate } from "@/lib/utils";
+import { formatDate, getApiResponseError, getErrorMessage } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface ContactMessagesManagerProps {
@@ -27,8 +27,8 @@ export function ContactMessagesManager({ initialMessages }: ContactMessagesManag
       });
 
       if (!res.ok) {
-        const d = await res.json();
-        throw new Error(d.error || "Failed to update status");
+        const errorMsg = await getApiResponseError(res, "Failed to update status");
+        throw new Error(errorMsg);
       }
 
       setMessages(
@@ -43,7 +43,7 @@ export function ContactMessagesManager({ initialMessages }: ContactMessagesManag
 
       router.refresh();
     } catch (err: any) {
-      toast.error("Error: " + err.message);
+      toast.error(getErrorMessage(err, "Failed to update status"));
     }
   };
 
@@ -56,8 +56,8 @@ export function ContactMessagesManager({ initialMessages }: ContactMessagesManag
       });
 
       if (!res.ok) {
-        const d = await res.json();
-        throw new Error(d.error || "Failed to delete message");
+        const errorMsg = await getApiResponseError(res, "Failed to delete message");
+        throw new Error(errorMsg);
       }
 
       setMessages(messages.filter((m) => m._id.toString() !== id));
@@ -67,7 +67,7 @@ export function ContactMessagesManager({ initialMessages }: ContactMessagesManag
       toast.success("Contact message deleted.");
       router.refresh();
     } catch (err: any) {
-      toast.error("Error: " + err.message);
+      toast.error(getErrorMessage(err, "Failed to delete message"));
     }
   };
 

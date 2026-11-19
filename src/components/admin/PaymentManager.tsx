@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { PaymentStatusBadge } from "@/components/admin/PaymentStatusBadge";
 import { toast } from "sonner";
+import { getApiResponseError, getErrorMessage } from "@/lib/utils";
 
 interface PaymentManagerProps {
   initialSettings: any;
@@ -93,14 +94,14 @@ export function PaymentManager({ initialSettings, manuscripts }: PaymentManagerP
       });
 
       if (!res.ok) {
-        const d = await res.json();
-        throw new Error(d.error || "Failed to update payment status");
+        const errorMsg = await getApiResponseError(res, "Failed to update payment status");
+        throw new Error(errorMsg);
       }
 
       toast.success("Payment status updated successfully!");
       router.refresh();
     } catch (err: any) {
-      toast.error(err.message || "Failed to update payment status");
+      toast.error(getErrorMessage(err, "Failed to update payment status"));
     }
   };
 
@@ -127,9 +128,9 @@ export function PaymentManager({ initialSettings, manuscripts }: PaymentManagerP
         }),
       });
 
-      const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to update payment settings");
+        const errorMsg = await getApiResponseError(res, "Failed to update payment settings");
+        throw new Error(errorMsg);
       }
 
       setSettingsSuccess("Payment settings and QR Code saved successfully!");
@@ -137,8 +138,9 @@ export function PaymentManager({ initialSettings, manuscripts }: PaymentManagerP
       router.refresh();
       setTimeout(() => setSettingsSuccess(null), 3500);
     } catch (err: any) {
-      setSettingsError(err.message || "Failed to save payment settings.");
-      toast.error(err.message || "Failed to save payment settings.");
+      const errMsg = getErrorMessage(err, "Failed to save payment settings.");
+      setSettingsError(errMsg);
+      toast.error(errMsg);
     } finally {
       setSavingSettings(false);
     }

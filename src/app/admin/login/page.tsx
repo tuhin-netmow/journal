@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { BookOpen, Lock, Mail, AlertCircle, Loader2, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 
 const defaultAdminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "admin@journal.ac.org";
 const defaultAdminPassword = "AdminPassword2026!";
@@ -41,12 +42,16 @@ export default function AdminLoginPage() {
 
       if (result?.error) {
         setError(result.error);
+        toast.error(result.error);
       } else if (result?.ok) {
+        toast.success("Login successful! Redirecting to dashboard...");
         router.push("/admin");
         router.refresh();
       }
     } catch (err: any) {
-      setError(err?.message || "Failed to authenticate.");
+      const errMsg = err?.message || "Failed to authenticate.";
+      setError(errMsg);
+      toast.error(errMsg);
     }
   };
 

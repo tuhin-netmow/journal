@@ -1,5 +1,6 @@
 import mongoose, { Schema, Model, models } from "mongoose";
 import { IJournalSettings } from "@/types";
+import { DEFAULT_CATEGORIES, DEFAULT_MANUSCRIPT_TYPES } from "@/lib/constants";
 
 const JournalSettingsSchema = new Schema<IJournalSettings>(
   {
@@ -19,6 +20,14 @@ const JournalSettingsSchema = new Schema<IJournalSettings>(
     logo: { type: String },
     primaryColor: { type: String, default: "#102A43" },
     secondaryColor: { type: String, default: "#1769AA" },
+    categories: {
+      type: [String],
+      default: DEFAULT_CATEGORIES,
+    },
+    manuscriptTypes: {
+      type: [String],
+      default: DEFAULT_MANUSCRIPT_TYPES,
+    },
     paymentFee: { type: Number, default: 350 },
     paymentCurrency: { type: String, default: "USD" },
     paymentProvider: { type: String, default: "Stripe / PayPal External Link" },

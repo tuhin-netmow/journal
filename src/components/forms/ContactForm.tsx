@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { getApiResponseError, getErrorMessage } from "@/lib/utils";
 
 export function ContactForm() {
   const [name, setName] = useState("");
@@ -29,10 +30,12 @@ export function ContactForm() {
         body: JSON.stringify({ name, email, subject, message }),
       });
 
-      const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to send message");
+        const errorMsg = await getApiResponseError(res, "Failed to send message");
+        throw new Error(errorMsg);
       }
+
+      await res.json();
 
       setSuccess(true);
       toast.success("Message sent successfully! We will get back to you shortly.");
@@ -41,7 +44,7 @@ export function ContactForm() {
       setSubject("");
       setMessage("");
     } catch (err: any) {
-      const errMsg = err.message || "An error occurred while sending your message.";
+      const errMsg = getErrorMessage(err, "An error occurred while sending your message.");
       setError(errMsg);
       toast.error(errMsg);
     } finally {

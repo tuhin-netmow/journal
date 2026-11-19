@@ -8,6 +8,7 @@ import { BookMarked, Plus, Search, Edit, Eye, Download, Trash2, ExternalLink } f
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/admin/StatusBadge";
+import { Pagination } from "@/components/ui/pagination";
 import { formatDate } from "@/lib/utils";
 
 export const revalidate = 0;
@@ -18,6 +19,8 @@ interface ArticlesPageProps {
     volume?: string;
     issue?: string;
     search?: string;
+    page?: string;
+    limit?: string;
   }>;
 }
 
@@ -28,6 +31,10 @@ export default async function AdminArticlesPage({ searchParams }: ArticlesPagePr
   const queryStatus = sp.status || "all";
   const queryVolume = sp.volume || "all";
   const querySearch = sp.search || "";
+
+  const page = Math.max(1, parseInt(sp.page || "1", 10) || 1);
+  const limit = Math.max(1, Math.min(100, parseInt(sp.limit || "10", 10) || 10));
+  const skip = (page - 1) * limit;
 
   const query: Record<string, any> = {};
   if (queryStatus !== "all") query.status = queryStatus;
@@ -41,14 +48,19 @@ export default async function AdminArticlesPage({ searchParams }: ArticlesPagePr
     ];
   }
 
-  const [articles, volumes] = await Promise.all([
+  const [articles, totalCount, volumes] = await Promise.all([
     Article.find(query)
       .populate("volume", "volumeNumber year")
       .populate("issue", "issueNumber title")
       .sort({ publicationDate: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
       .lean(),
+    Article.countDocuments(query),
     Volume.find().sort({ volumeNumber: -1 }).lean(),
   ]);
+
+  const totalPages = Math.ceil(totalCount / limit) || 1;
 
   return (
     <div className="space-y-6">
@@ -142,7 +154,14 @@ export default async function AdminArticlesPage({ searchParams }: ArticlesPagePr
       {/* Articles Table */}
       <div className="bg-white rounded-xl border border-academic-border shadow-sm overflow-hidden">
         <div className="p-4 border-b border-gray-100 flex items-center justify-between text-xs text-academic-muted font-medium">
-          <span>Total: <strong>{articles.length}</strong> articles</span>
+          <span>
+            Total: <strong>{totalCount}</strong> article{totalCount === 1 ? "" : "s"}
+          </span>
+          {totalPages > 1 && (
+            <span>
+              Page <strong>{page}</strong> of <strong>{totalPages}</strong>
+            </span>
+          )}
         </div>
 
         <div className="overflow-x-auto">
@@ -234,6 +253,21 @@ export default async function AdminArticlesPage({ searchParams }: ArticlesPagePr
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={totalCount}
+          limit={limit}
+          baseUrl="/admin/articles"
+          searchParams={{
+            status: queryStatus !== "all" ? queryStatus : undefined,
+            volume: queryVolume !== "all" ? queryVolume : undefined,
+            search: querySearch || undefined,
+            limit: sp.limit || undefined,
+          }}
+          itemName="articles"
+        />
       </div>
     </div>
   );

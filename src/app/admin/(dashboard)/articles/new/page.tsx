@@ -3,8 +3,10 @@ import connectToDatabase from "@/lib/mongodb";
 import Volume from "@/models/Volume";
 import Issue from "@/models/Issue";
 import Manuscript from "@/models/Manuscript";
+import JournalSettings from "@/models/JournalSettings";
 import { ArticleForm } from "@/components/admin/ArticleForm";
 import { slugify } from "@/lib/utils";
+import { DEFAULT_CATEGORIES } from "@/lib/constants";
 
 export const revalidate = 0;
 
@@ -20,9 +22,10 @@ export default async function AdminNewArticlePage({
   await connectToDatabase();
   const sp = await searchParams;
 
-  const [volumes, issues] = await Promise.all([
+  const [volumes, issues, settings] = await Promise.all([
     Volume.find().sort({ volumeNumber: -1 }).lean(),
     Issue.find().populate("volume", "volumeNumber").sort({ issueNumber: 1 }).lean(),
+    JournalSettings.findOne().lean(),
   ]);
 
   let initialData: any = {};
@@ -53,6 +56,7 @@ export default async function AdminNewArticlePage({
       volumes={JSON.parse(JSON.stringify(volumes))}
       issues={JSON.parse(JSON.stringify(issues))}
       isEdit={false}
+      categories={settings?.categories || DEFAULT_CATEGORIES}
     />
   );
 }

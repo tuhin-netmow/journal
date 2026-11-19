@@ -2,12 +2,15 @@ import React from "react";
 import Link from "next/link";
 import connectToDatabase from "@/lib/mongodb";
 import Manuscript from "@/models/Manuscript";
+import JournalSettings from "@/models/JournalSettings";
+import { DEFAULT_CATEGORIES, DEFAULT_MANUSCRIPT_TYPES } from "@/lib/constants";
 import { FileText, Download, Eye, Search, Filter, Trash2, ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { PaymentStatusBadge } from "@/components/admin/PaymentStatusBadge";
 import { DeleteManuscriptButton } from "@/components/admin/DeleteManuscriptButton";
+import { Pagination } from "@/components/ui/pagination";
 import { formatDate } from "@/lib/utils";
 
 export const revalidate = 0;
@@ -16,7 +19,11 @@ interface SubmissionsPageProps {
   searchParams: Promise<{
     status?: string;
     paymentStatus?: string;
+    category?: string;
+    manuscriptType?: string;
     search?: string;
+    page?: string;
+    limit?: string;
   }>;
 }
 
@@ -26,11 +33,19 @@ export default async function AdminSubmissionsPage({ searchParams }: Submissions
 
   const queryStatus = sp.status || "all";
   const queryPayment = sp.paymentStatus || "all";
+  const queryCategory = sp.category || "all";
+  const queryType = sp.manuscriptType || "all";
   const querySearch = sp.search || "";
+
+  const page = Math.max(1, parseInt(sp.page || "1", 10) || 1);
+  const limit = Math.max(1, Math.min(100, parseInt(sp.limit || "10", 10) || 10));
+  const skip = (page - 1) * limit;
 
   const query: Record<string, any> = {};
   if (queryStatus !== "all") query.status = queryStatus;
   if (queryPayment !== "all") query.paymentStatus = queryPayment;
+  if (queryCategory !== "all") query.category = queryCategory;
+  if (queryType !== "all") query.manuscriptType = queryType;
   if (querySearch) {
     query.$or = [
       { submissionId: { $regex: querySearch, $options: "i" } },
@@ -41,7 +56,26 @@ export default async function AdminSubmissionsPage({ searchParams }: Submissions
     ];
   }
 
-  const submissions = await Manuscript.find(query).sort({ createdAt: -1 }).lean();
+  const [submissions, totalCount, settings] = await Promise.all([
+    Manuscript.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    Manuscript.countDocuments(query),
+    JournalSettings.findOne().lean(),
+  ]);
+
+  const totalPages = Math.ceil(totalCount / limit) || 1;
+
+  const liveCategories =
+    settings?.categories && settings.categories.length > 0
+      ? settings.categories
+      : DEFAULT_CATEGORIES;
+  const liveManuscriptTypes =
+    settings?.manuscriptTypes && settings.manuscriptTypes.length > 0
+      ? settings.manuscriptTypes
+      : DEFAULT_MANUSCRIPT_TYPES;
 
   return (
     <div className="space-y-6">
@@ -59,8 +93,8 @@ export default async function AdminSubmissionsPage({ searchParams }: Submissions
 
       {/* Filters & Search Bar */}
       <div className="bg-white p-5 rounded-xl border border-academic-border shadow-sm">
-        <form method="GET" action="/admin/submissions" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="sm:col-span-2">
+        <form method="GET" action="/admin/submissions" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="sm:col-span-2 lg:col-span-4">
             <label className="block text-xs font-semibold text-academic-text mb-1">
               Search Submissions
             </label>
@@ -111,14 +145,50 @@ export default async function AdminSubmissionsPage({ searchParams }: Submissions
             </select>
           </div>
 
-          <div className="sm:col-span-2 md:col-span-4 flex items-center justify-end space-x-3 pt-2">
-            <Button type="submit" variant="royal" size="sm" className="space-x-1.5">
+          <div>
+            <label className="block text-xs font-semibold text-academic-text mb-1">
+              Research Category
+            </label>
+            <select
+              name="category"
+              defaultValue={queryCategory}
+              className="w-full h-10 rounded-md border border-academic-border bg-white px-3 py-2 text-sm text-academic-text focus:outline-none focus:ring-2 focus:ring-royal"
+            >
+              <option value="all">All Research Categories</option>
+              {liveCategories.map((c: string) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-academic-text mb-1">
+              Manuscript Type
+            </label>
+            <select
+              name="manuscriptType"
+              defaultValue={queryType}
+              className="w-full h-10 rounded-md border border-academic-border bg-white px-3 py-2 text-sm text-academic-text focus:outline-none focus:ring-2 focus:ring-royal"
+            >
+              <option value="all">All Manuscript Types</option>
+              {liveManuscriptTypes.map((t: string) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="sm:col-span-2 lg:col-span-4 flex items-center justify-end space-x-3 pt-2">
+            <Button type="submit" variant="royal" size="sm" className="space-x-1.5 cursor-pointer">
               <Search className="w-3.5 h-3.5" />
               <span>Apply Filters</span>
             </Button>
-            {(querySearch || queryStatus !== "all" || queryPayment !== "all") && (
+            {(querySearch || queryStatus !== "all" || queryPayment !== "all" || queryCategory !== "all" || queryType !== "all") && (
               <Button href="/admin/submissions" variant="outline" size="sm">
-                Clear
+                Reset
               </Button>
             )}
           </div>
@@ -128,7 +198,14 @@ export default async function AdminSubmissionsPage({ searchParams }: Submissions
       {/* Submissions Table */}
       <div className="bg-white rounded-xl border border-academic-border shadow-sm overflow-hidden">
         <div className="p-4 border-b border-gray-100 flex items-center justify-between text-xs text-academic-muted font-medium">
-          <span>Total: <strong>{submissions.length}</strong> manuscripts</span>
+          <span>
+            Total: <strong>{totalCount}</strong> manuscript{totalCount === 1 ? "" : "s"}
+          </span>
+          {totalPages > 1 && (
+            <span>
+              Page <strong>{page}</strong> of <strong>{totalPages}</strong>
+            </span>
+          )}
         </div>
 
         <div className="overflow-x-auto">
@@ -231,6 +308,23 @@ export default async function AdminSubmissionsPage({ searchParams }: Submissions
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={totalCount}
+          limit={limit}
+          baseUrl="/admin/submissions"
+          searchParams={{
+            status: queryStatus !== "all" ? queryStatus : undefined,
+            paymentStatus: queryPayment !== "all" ? queryPayment : undefined,
+            category: queryCategory !== "all" ? queryCategory : undefined,
+            manuscriptType: queryType !== "all" ? queryType : undefined,
+            search: querySearch || undefined,
+            limit: sp.limit || undefined,
+          }}
+          itemName="manuscripts"
+        />
       </div>
     </div>
   );

@@ -6,6 +6,8 @@ import { Globe, Save, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import { getApiResponseError, getErrorMessage } from "@/lib/utils";
 
 interface ContentManagerProps {
   initialContents: any[];
@@ -79,16 +81,19 @@ export function ContentManager({ initialContents }: ContentManagerProps) {
         body: JSON.stringify({ pageKey, title, content }),
       });
 
-      const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to save content");
+        const errorMsg = await getApiResponseError(res, "Failed to save content");
+        throw new Error(errorMsg);
       }
 
       setSuccess("Page content saved successfully!");
+      toast.success("Page content saved successfully!");
       router.refresh();
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
-      setError(err.message || "Failed to save content.");
+      const errMsg = getErrorMessage(err, "Failed to save content.");
+      setError(errMsg);
+      toast.error(errMsg);
     } finally {
       setSaving(false);
     }

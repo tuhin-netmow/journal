@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
   LayoutDashboard,
@@ -19,19 +19,31 @@ import {
   ExternalLink,
   BookOpen,
   X,
+  Tag,
 } from "lucide-react";
 
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/submissions", label: "Manuscripts", icon: FileText },
   { href: "/admin/articles", label: "Published Articles", icon: BookMarked },
+  {
+    href: "/admin/settings?tab=taxonomy#taxonomy",
+    label: "Categories & Types",
+    icon: Tag,
+    tab: "taxonomy",
+  },
   { href: "/admin/volumes", label: "Volumes", icon: Layers },
   { href: "/admin/issues", label: "Issues", icon: Calendar },
   { href: "/admin/editorial-board", label: "Editorial Board", icon: Users },
   { href: "/admin/content", label: "Website Content", icon: Globe },
   { href: "/admin/payments", label: "Payment Settings", icon: CreditCard },
   { href: "/admin/messages", label: "Contact Messages", icon: Mail },
-  { href: "/admin/settings", label: "Journal Settings", icon: Sliders },
+  {
+    href: "/admin/settings",
+    label: "Journal Settings",
+    icon: Sliders,
+    tab: "general",
+  },
 ];
 
 interface AdminSidebarProps {
@@ -50,6 +62,8 @@ export function AdminSidebar({
   shortName,
 }: AdminSidebarProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentTab = searchParams.get("tab");
 
   return (
     <aside
@@ -100,10 +114,18 @@ export function AdminSidebar({
 
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive =
-            item.href === "/admin"
-              ? pathname === "/admin"
-              : pathname.startsWith(item.href);
+          const isActive = (() => {
+            if (item.href === "/admin") {
+              return pathname === "/admin";
+            }
+            if (item.tab === "taxonomy") {
+              return pathname === "/admin/settings" && currentTab === "taxonomy";
+            }
+            if (item.tab === "general") {
+              return pathname === "/admin/settings" && currentTab !== "taxonomy";
+            }
+            return pathname.startsWith(item.href);
+          })();
 
           return (
             <Link

@@ -33,3 +33,12 @@ export function generateSubmissionId(): string {
   const random = Math.floor(1000 + Math.random() * 9000);
   return `MS-${year}-${random}`;
 }
+
+export {
+  extractErrorMessage,
+  getApiResponseError,
+  getErrorMessage,
+  formatValidationDetails,
+  getStatusErrorMessage,
+} from "./errorUtils";
+

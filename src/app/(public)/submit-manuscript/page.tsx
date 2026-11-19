@@ -1,13 +1,34 @@
 import React from "react";
 import { ManuscriptSubmissionForm } from "@/components/forms/ManuscriptSubmissionForm";
-import { FileCheck, Shield, Clock, Send } from "lucide-react";
+import { FileCheck, Shield, Clock } from "lucide-react";
+import connectToDatabase from "@/lib/mongodb";
+import JournalSettings from "@/models/JournalSettings";
+import { DEFAULT_CATEGORIES, DEFAULT_MANUSCRIPT_TYPES } from "@/lib/constants";
 
 export const metadata = {
   title: "Submit Manuscript",
   description: "Submit your scholarly research manuscript online to IJASR. No registration or author account required.",
 };
 
-export default function SubmitManuscriptPage() {
+export const dynamic = "force-dynamic";
+
+export default async function SubmitManuscriptPage() {
+  let categories: string[] = DEFAULT_CATEGORIES;
+  let manuscriptTypes: string[] = DEFAULT_MANUSCRIPT_TYPES;
+
+  try {
+    await connectToDatabase();
+    const settings = await JournalSettings.findOne().lean();
+    if (settings?.categories && settings.categories.length > 0) {
+      categories = settings.categories;
+    }
+    if (settings?.manuscriptTypes && settings.manuscriptTypes.length > 0) {
+      manuscriptTypes = settings.manuscriptTypes;
+    }
+  } catch (err) {
+    console.warn("Could not load journal taxonomy settings:", err);
+  }
+
   return (
     <div className="py-12 bg-academic-bg min-h-screen">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
@@ -32,7 +53,7 @@ export default function SubmitManuscriptPage() {
             </div>
             <div className="text-xs">
               <div className="font-bold text-navy">PDF Manuscripts Only</div>
-              <div className="text-academic-muted">Up to 10 MB per file</div>
+              <div className="text-academic-muted">Up to 30 MB per file</div>
             </div>
           </div>
 
@@ -58,7 +79,10 @@ export default function SubmitManuscriptPage() {
         </div>
 
         {/* Main Submission Form */}
-        <ManuscriptSubmissionForm />
+        <ManuscriptSubmissionForm
+          initialCategories={categories}
+          initialManuscriptTypes={manuscriptTypes}
+        />
       </div>
     </div>
   );

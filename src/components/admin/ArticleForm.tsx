@@ -15,18 +15,23 @@ import {
   ArrowLeft,
   ExternalLink,
   Mail,
+  X,
+  Tag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { toast } from "sonner";
-import { slugify } from "@/lib/utils";
+import { slugify, getApiResponseError, getErrorMessage } from "@/lib/utils";
+import { DEFAULT_CATEGORIES } from "@/lib/constants";
 
 interface ArticleFormProps {
   initialData?: any;
   volumes: any[];
   issues: any[];
   isEdit?: boolean;
+  categories?: string[];
 }
 
 export function ArticleForm({
@@ -34,8 +39,12 @@ export function ArticleForm({
   volumes = [],
   issues = [],
   isEdit = false,
+  categories,
 }: ArticleFormProps) {
   const router = useRouter();
+
+  const availableCategories =
+    categories && categories.length > 0 ? categories : DEFAULT_CATEGORIES;
 
   const [title, setTitle] = useState(initialData.title || "");
   const [slug, setSlug] = useState(initialData.slug || "");
@@ -45,10 +54,50 @@ export function ArticleForm({
       : [{ name: "", affiliation: "", email: "" }]
   );
   const [abstract, setAbstract] = useState(initialData.abstract || "");
-  const [keywords, setKeywords] = useState(
-    Array.isArray(initialData.keywords) ? initialData.keywords.join(", ") : initialData.keywords || ""
+
+  // Keywords state with Enter key & badge management
+  const parseInitialKeywords = (): string[] => {
+    if (Array.isArray(initialData.keywords)) {
+      return initialData.keywords.map((k: any) => String(k).trim()).filter(Boolean);
+    }
+    if (typeof initialData.keywords === "string" && initialData.keywords.trim()) {
+      return initialData.keywords.split(",").map((k: string) => k.trim()).filter(Boolean);
+    }
+    return [];
+  };
+
+  const [keywordsList, setKeywordsList] = useState<string[]>(parseInitialKeywords);
+  const [keywordInput, setKeywordInput] = useState("");
+
+  const addKeyword = (valueToAdd?: string) => {
+    const raw = valueToAdd !== undefined ? valueToAdd : keywordInput;
+    const trimmed = raw.trim().replace(/^,+|,+$/g, "");
+    if (!trimmed) return;
+    const parts = trimmed.split(",").map((k) => k.trim()).filter(Boolean);
+    const updated = [...keywordsList];
+    for (const p of parts) {
+      if (!updated.some((existing) => existing.toLowerCase() === p.toLowerCase())) {
+        updated.push(p);
+      }
+    }
+    setKeywordsList(updated);
+    setKeywordInput("");
+  };
+
+  const handleKeywordKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      addKeyword();
+    }
+  };
+
+  const removeKeyword = (idx: number) => {
+    setKeywordsList(keywordsList.filter((_, i) => i !== idx));
+  };
+
+  const [category, setCategory] = useState(
+    initialData.category || availableCategories[0] || "General Science"
   );
-  const [category, setCategory] = useState(initialData.category || "Computer Science & AI");
   const [volumeId, setVolumeId] = useState(
     initialData.volume?._id?.toString() || initialData.volume?.toString() || (volumes[0]?._id?.toString() || "")
   );
@@ -130,6 +179,26 @@ export function ArticleForm({
       return;
     }
 
+    // Collect final keywords
+    const finalKeywords = [...keywordsList];
+    if (keywordInput.trim()) {
+      const parts = keywordInput.trim().split(",").map((k) => k.trim()).filter(Boolean);
+      for (const p of parts) {
+        if (!finalKeywords.some((existing) => existing.toLowerCase() === p.toLowerCase())) {
+          finalKeywords.push(p);
+        }
+      }
+      setKeywordsList(finalKeywords);
+      setKeywordInput("");
+    }
+
+    if (finalKeywords.length === 0) {
+      const msg = "Please enter at least one keyword (press Enter to add).";
+      setError(msg);
+      toast.error(msg);
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -141,7 +210,7 @@ export function ArticleForm({
       formData.append("slug", slugify(slug || title));
       formData.append("authors", JSON.stringify(validAuthors));
       formData.append("abstract", abstract);
-      formData.append("keywords", keywords);
+      formData.append("keywords", JSON.stringify(finalKeywords));
       formData.append("category", category);
       formData.append("volume", volumeId);
       formData.append("issue", issueId);
@@ -161,10 +230,12 @@ export function ArticleForm({
         body: formData,
       });
 
-      const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to save article");
+        const errorMsg = await getApiResponseError(res, "Failed to save article");
+        throw new Error(errorMsg);
       }
+
+      const data = await res.json();
 
       const successMsg = `Article ${isEdit ? "updated" : "created"} successfully!`;
       setSuccess(successMsg);
@@ -183,8 +254,9 @@ export function ArticleForm({
       router.push("/admin/articles");
       router.refresh();
     } catch (err: any) {
-      setError(err.message || "An unexpected error occurred.");
-      toast.error(err.message || "An unexpected error occurred.");
+      const errMsg = getErrorMessage(err, "An unexpected error occurred while saving the article.");
+      setError(errMsg);
+      toast.error(errMsg);
     } finally {
       setLoading(false);
     }
@@ -197,17 +269,20 @@ export function ArticleForm({
       const res = await fetch(`/api/articles/${initialData._id}/notify`, {
         method: "POST",
       });
-      const data = await res.json();
+
       if (!res.ok) {
-        throw new Error(data.error || "Failed to send publication email");
+        const errorMsg = await getApiResponseError(res, "Failed to send publication email");
+        throw new Error(errorMsg);
       }
+
+      const data = await res.json();
       if (data.recipients && data.recipients.length > 0) {
         toast.success(`Publication email dispatched to: ${data.recipients.join(", ")}`);
       } else {
         toast.info(data.message || "Publication notice sent to editorial office (no author email on file)");
       }
     } catch (err: any) {
-      toast.error("Email dispatch failed: " + err.message);
+      toast.error(getErrorMessage(err, "Email dispatch failed"));
     } finally {
       setSendingNotice(false);
     }
@@ -225,15 +300,15 @@ export function ArticleForm({
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to delete article");
+        const errorMsg = await getApiResponseError(res, "Failed to delete article");
+        throw new Error(errorMsg);
       }
 
       toast.success("Article deleted successfully!");
       router.push("/admin/articles");
       router.refresh();
     } catch (err: any) {
-      toast.error("Error: " + err.message);
+      toast.error(getErrorMessage(err, "Failed to delete article"));
       setDeleting(false);
     }
   };
@@ -400,32 +475,68 @@ export function ArticleForm({
             <label className="block text-xs font-semibold text-academic-text mb-1">
               Research Category *
             </label>
-            <select
+            <SearchableSelect
               value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full h-10 rounded-md border border-academic-border bg-white px-3 py-2 text-sm text-academic-text focus:outline-none focus:ring-2 focus:ring-royal"
-            >
-              <option value="Computer Science & AI">Computer Science & AI</option>
-              <option value="Electrical Engineering">Electrical Engineering</option>
-              <option value="Materials Science">Materials Science</option>
-              <option value="Biomedical Sciences">Biomedical Sciences</option>
-              <option value="Environmental Sciences">Environmental Sciences</option>
-              <option value="Applied Physics">Applied Physics</option>
-              <option value="Robotics & Automation">Robotics & Automation</option>
-              <option value="General Science">General Science</option>
-            </select>
+              onChange={setCategory}
+              options={availableCategories}
+              placeholder="Select research category..."
+              searchPlaceholder="Search or type research category..."
+            />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-academic-text mb-1">
-              Keywords (Comma separated) *
-            </label>
-            <Input
-              required
-              placeholder="e.g. Perovskites, Solar Cells, Materials"
-              value={keywords}
-              onChange={(e) => setKeywords(e.target.value)}
-            />
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-academic-text">
+                Keywords *
+              </label>
+              <span className="text-[10px] text-academic-muted">
+                Press <kbd className="px-1 py-0.5 bg-gray-100 border border-gray-300 rounded font-mono text-navy">Enter</kbd> or comma
+              </span>
+            </div>
+
+            {/* Keyword tag badges */}
+            {keywordsList.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2 p-2 bg-academic-bg border border-academic-border rounded-lg">
+                {keywordsList.map((kw, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded bg-white border border-royal/30 text-royal text-xs font-medium shadow-xs"
+                  >
+                    <Tag className="w-3 h-3 text-royal/60" />
+                    <span>{kw}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeKeyword(idx)}
+                      className="text-academic-muted hover:text-rose-600 transition-colors ml-0.5 cursor-pointer"
+                      title="Remove keyword"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <Input
+                placeholder="e.g. Deep Learning, AI (press Enter to add)"
+                value={keywordInput}
+                onChange={(e) => setKeywordInput(e.target.value)}
+                onKeyDown={handleKeywordKeyDown}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => addKeyword()}
+                className="shrink-0 text-xs font-semibold border-academic-border hover:bg-royal hover:text-white transition-colors"
+              >
+                + Add
+              </Button>
+            </div>
+            <p className="text-[10px] text-academic-muted mt-1">
+              Add at least one keyword. Press Enter or type commas to add multiple tags.
+            </p>
           </div>
         </div>
       </div>

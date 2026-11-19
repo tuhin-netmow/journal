@@ -143,6 +143,7 @@ export async function sendEmail({ to, subject, html, text }: SendEmailOptions) {
   }
 
   const mg = await getMailgunConfig(dbSettings);
+  let mailgunError: string | null = null;
 
   // 1. Try Mailgun REST API if configured (and not explicitly configured as SMTP user)
   if (mg.client && mg.cleanDomain && !mg.isSmtpOnly) {
@@ -157,8 +158,9 @@ export async function sendEmail({ to, subject, html, text }: SendEmailOptions) {
       console.log(`[EmailService:Mailgun-API] Sent email to ${recipientList.join(", ")} - ID: ${result.id}`);
       return { success: true, provider: "mailgun-api", id: result.id };
     } catch (apiError: any) {
+      mailgunError = apiError.message || String(apiError);
       console.warn(
-        `[EmailService:Mailgun-API] REST API dispatch failed (${apiError.message || apiError}). Attempting SMTP fallback...`
+        `[EmailService:Mailgun-API] REST API dispatch failed (${mailgunError}). Attempting SMTP fallback...`
       );
     }
   }
@@ -180,6 +182,14 @@ export async function sendEmail({ to, subject, html, text }: SendEmailOptions) {
   } catch (smtpError: any) {
     console.error("[EmailService:SMTP] SMTP dispatch failed:", smtpError.message || smtpError);
     return { success: false, error: smtpError.message || "SMTP dispatch error" };
+  }
+
+  // If Mailgun REST API was configured but failed, and no SMTP succeeded:
+  if (mailgunError) {
+    return {
+      success: false,
+      error: `Mailgun delivery failed: ${mailgunError}`,
+    };
   }
 
   // 3. Fallback: Simulation log when neither Mailgun nor SMTP succeeds
