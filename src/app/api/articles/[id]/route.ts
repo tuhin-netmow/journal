@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import mongoose from "mongoose";
 import connectToDatabase from "@/lib/mongodb";
 import Article from "@/models/Article";
+import Issue from "@/models/Issue";
 import Manuscript from "@/models/Manuscript";
 import { getAdminSession } from "@/lib/auth";
 import { saveFile, deleteFile } from "@/lib/storage";
@@ -139,6 +140,11 @@ export async function PUT(
     }
 
     await article.save();
+
+    // If published, ensure the parent issue is also marked as published
+    if (article.status === "published" && article.issue) {
+      await Issue.findByIdAndUpdate(article.issue, { status: "published" });
+    }
 
     // If the article became published from draft, or if explicit notifyAuthors request is received
     let emailDispatched = false;

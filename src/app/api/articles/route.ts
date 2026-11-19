@@ -175,6 +175,11 @@ export async function POST(req: NextRequest) {
       await Manuscript.findByIdAndUpdate(validData.sourceManuscript, { status: "published" });
     }
 
+    // If published, ensure the parent issue is also marked as published
+    if (validData.status === "published" && validData.issue) {
+      await Issue.findByIdAndUpdate(validData.issue, { status: "published" });
+    }
+
     // If published, dispatch celebratory publication email to the authors & editorial office
     let emailDispatched = false;
     let emailRecipients: string[] = [];

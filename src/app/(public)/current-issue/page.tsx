@@ -17,10 +17,34 @@ export const revalidate = 0;
 export default async function CurrentIssuePage() {
   await connectToDatabase();
 
-  const currentIssue = await Issue.findOne({ status: "published" })
+  // Fetch all issues that are marked as published or contain published articles
+  const publishedIssueIds = await Article.distinct("issue", { status: "published" });
+
+  const publishedIssues = await Issue.find({
+    $or: [
+      { status: "published" },
+      { _id: { $in: publishedIssueIds } },
+    ],
+  })
     .populate("volume", "volumeNumber year description")
-    .sort({ publicationDate: -1, createdAt: -1 })
     .lean();
+
+  // Determine current issue: highest Volume Number, then highest Issue Number, then latest publicationDate
+  publishedIssues.sort((a: any, b: any) => {
+    const volA = a.volume?.volumeNumber ?? 0;
+    const volB = b.volume?.volumeNumber ?? 0;
+    if (volA !== volB) return volB - volA;
+
+    const issA = a.issueNumber ?? 0;
+    const issB = b.issueNumber ?? 0;
+    if (issA !== issB) return issB - issA;
+
+    const dateA = new Date(a.publicationDate || a.createdAt || 0).getTime();
+    const dateB = new Date(b.publicationDate || b.createdAt || 0).getTime();
+    return dateB - dateA;
+  });
+
+  const currentIssue = publishedIssues[0] || null;
 
   let articles: any[] = [];
   if (currentIssue) {
