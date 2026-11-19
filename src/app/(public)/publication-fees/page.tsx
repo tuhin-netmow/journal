@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import QRCode from "qrcode";
 import { Button } from "@/components/ui/button";
+import { getCurrencySymbol } from "@/lib/utils";
 
 export const metadata = {
   title: "Publication Fees",
@@ -27,6 +28,7 @@ export default async function PublicationFeesPage() {
 
   const fee = settings.paymentFee !== undefined ? settings.paymentFee : 350;
   const currency = settings.paymentCurrency || "USD";
+  const currencySymbol = getCurrencySymbol(currency);
   const provider = settings.paymentProvider || "External Scholarly Payment Portal";
   const paymentLink = settings.paymentLink || "https://buy.stripe.com/demo-journal-apc";
   const customQrCode = settings.paymentQrCode || "";
@@ -76,7 +78,10 @@ export default async function PublicationFeesPage() {
             </span>
             <div className="flex items-baseline space-x-2">
               <span className="font-serif font-black text-4xl sm:text-5xl text-navy">
-                ${fee}
+                {currencySymbol && currencySymbol !== currency
+                  ? (currencySymbol.length > 1 ? `${currencySymbol} ` : currencySymbol)
+                  : ""}
+                {fee}
               </span>
               <span className="text-sm font-bold text-academic-muted uppercase">
                 {currency}

@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { PaymentStatusBadge } from "@/components/admin/PaymentStatusBadge";
 import { toast } from "sonner";
-import { getApiResponseError, getErrorMessage } from "@/lib/utils";
+import { getApiResponseError, getErrorMessage, formatPrice } from "@/lib/utils";
 
 interface PaymentManagerProps {
   initialSettings: any;
@@ -209,8 +209,15 @@ export function PaymentManager({ initialSettings, manuscripts }: PaymentManagerP
                   required
                   value={paymentCurrency}
                   onChange={(e) => setPaymentCurrency(e.target.value.toUpperCase())}
-                  placeholder="USD, EUR, GBP"
+                  placeholder="USD, EUR, MYR, GBP"
                 />
+              </div>
+
+              <div className="col-span-2 text-[11px] text-academic-muted flex items-center space-x-1.5 bg-academic-bg p-2 rounded-lg border border-academic-border">
+                <span className="font-semibold text-navy">Display Preview:</span>
+                <span className="font-mono text-royal font-bold">
+                  {formatPrice(paymentFee || "0", paymentCurrency || "USD")} ({paymentCurrency})
+                </span>
               </div>
             </div>
 

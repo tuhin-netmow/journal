@@ -34,6 +34,49 @@ export function generateSubmissionId(): string {
   return `MS-${year}-${random}`;
 }
 
+export function getCurrencySymbol(currency: string = "USD"): string {
+  const code = (currency || "").trim().toUpperCase();
+  const map: Record<string, string> = {
+    USD: "$",
+    EUR: "€",
+    GBP: "£",
+    MYR: "RM",
+    BDT: "৳",
+    INR: "₹",
+    CAD: "CA$",
+    AUD: "AU$",
+    JPY: "¥",
+    CNY: "¥",
+    SGD: "S$",
+    NZD: "NZ$",
+    CHF: "CHF",
+    PHP: "₱",
+    THB: "฿",
+    IDR: "Rp",
+    VND: "₫",
+    KRW: "₩",
+    NGN: "₦",
+    PKR: "₨",
+    SAR: "SAR",
+    AED: "AED",
+    TRY: "₺",
+    BRL: "R$",
+    ZAR: "R",
+  };
+  return map[code] || code;
+}
+
+export function formatPrice(amount: number | string, currency: string = "USD"): string {
+  const num = typeof amount === "string" ? parseFloat(amount) : amount;
+  const symbol = getCurrencySymbol(currency);
+  const formattedNum = isNaN(num) ? amount : num.toLocaleString();
+
+  if (symbol && symbol !== currency.trim().toUpperCase()) {
+    return symbol.length > 1 ? `${symbol} ${formattedNum}` : `${symbol}${formattedNum}`;
+  }
+  return `${formattedNum} ${currency.trim().toUpperCase()}`;
+}
+
 export {
   extractErrorMessage,
   getApiResponseError,

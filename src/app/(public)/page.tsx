@@ -33,11 +33,33 @@ export default async function HomePage() {
   const settings: any = (await JournalSettings.findOne().lean()) || {};
   const heroContent: any = (await PageContent.findOne({ pageKey: "homepage_hero" }).lean()) || {};
 
-  // Fetch current issue
-  const currentIssue = await Issue.findOne({ status: "published" })
-    .populate("volume", "volumeNumber year")
-    .sort({ publicationDate: -1, createdAt: -1 })
+  // Fetch current / latest issue
+  const publishedIssueIds = await Article.distinct("issue", { status: "published" });
+
+  const publishedIssues = await Issue.find({
+    $or: [
+      { status: "published" },
+      { _id: { $in: publishedIssueIds } },
+    ],
+  })
+    .populate("volume", "volumeNumber year description")
     .lean();
+
+  publishedIssues.sort((a: any, b: any) => {
+    const volA = a.volume?.volumeNumber ?? 0;
+    const volB = b.volume?.volumeNumber ?? 0;
+    if (volA !== volB) return volB - volA;
+
+    const issA = a.issueNumber ?? 0;
+    const issB = b.issueNumber ?? 0;
+    if (issA !== issB) return issB - issA;
+
+    const dateA = new Date(a.publicationDate || a.createdAt || 0).getTime();
+    const dateB = new Date(b.publicationDate || b.createdAt || 0).getTime();
+    return dateB - dateA;
+  });
+
+  const currentIssue = publishedIssues[0] || null;
 
   // Fetch recent published articles (up to 6)
   const recentArticles = await Article.find({ status: "published" })
